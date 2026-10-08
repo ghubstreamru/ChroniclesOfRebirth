@@ -158,17 +158,18 @@ namespace ChroniclesOfRebirth.Core.Meshes
             }
         }
 
-        static List<Vector3> _sphereVertices;
-        static List<int> _sphereTriangles;
+        /// <summary>Единичные сферы по уровню подразделения икосаэдра: вершины и треугольники.</summary>
+        static readonly Dictionary<int, (List<Vector3> vertices, List<int> triangles)> Spheres = new();
 
         /// <summary>
-        /// Округлый неровный валун: дважды подразделённый икосаэдр, форма — несколько крупных «наплывов»
-        /// в случайных направлениях, плоское основание (камень сидит в земле). Нормали сглажены — свет ложится мягко;
-        /// UV — по нормали каждого треугольника, текстура не растягивается на изгибах.
+        /// Округлый неровный валун: подразделённый икосаэдр (detail — число подразделений: 2 для валунов,
+        /// 0–1 для гальки), форма — несколько крупных «наплывов» в случайных направлениях, плоское основание
+        /// (камень сидит в земле). Нормали сглажены — свет ложится мягко; UV — по нормали каждого треугольника,
+        /// текстура не растягивается на изгибах.
         /// </summary>
-        public void AddRock(int submesh, Vector3 position, Vector3 scale, float rotationY, int seed, Color32 color)
+        public void AddRock(int submesh, Vector3 position, Vector3 scale, float rotationY, int seed, Color32 color, int detail = 2)
         {
-            EnsureSphere();
+            var (sphereVertices, sphereTriangles) = Sphere(detail);
             var m = Matrix4x4.TRS(position, Quaternion.Euler(0f, rotationY, 0f), scale);
 
             // Наплывы: направление и сила; вместе с мелкой неровностью дают уникальную форму каждому камню.
@@ -189,10 +190,10 @@ namespace ChroniclesOfRebirth.Core.Meshes
                 cuts[k] = new Vector4(dir.x, dir.y, dir.z, 0.62f + Pixel.PixelNoise.Hash01(k, seed, 89) * 0.25f);
             }
 
-            var points = new Vector3[_sphereVertices.Count];
+            var points = new Vector3[sphereVertices.Count];
             for (var i = 0; i < points.Length; i++)
             {
-                var d = _sphereVertices[i];
+                var d = sphereVertices[i];
                 var r = 0.7f;
                 foreach (var lump in lumps)
                 {
@@ -214,9 +215,9 @@ namespace ChroniclesOfRebirth.Core.Meshes
 
             // Сглаженные нормали вершин — сумма нормалей прилегающих граней.
             var normals = new Vector3[points.Length];
-            for (var i = 0; i < _sphereTriangles.Count; i += 3)
+            for (var i = 0; i < sphereTriangles.Count; i += 3)
             {
-                int a = _sphereTriangles[i], b = _sphereTriangles[i + 1], c = _sphereTriangles[i + 2];
+                int a = sphereTriangles[i], b = sphereTriangles[i + 1], c = sphereTriangles[i + 2];
                 var n = Vector3.Cross(points[b] - points[a], points[c] - points[a]);
                 normals[a] += n;
                 normals[b] += n;
@@ -224,9 +225,9 @@ namespace ChroniclesOfRebirth.Core.Meshes
             }
 
             var tris = Submesh(submesh);
-            for (var i = 0; i < _sphereTriangles.Count; i += 3)
+            for (var i = 0; i < sphereTriangles.Count; i += 3)
             {
-                int a = _sphereTriangles[i], b = _sphereTriangles[i + 1], c = _sphereTriangles[i + 2];
+                int a = sphereTriangles[i], b = sphereTriangles[i + 1], c = sphereTriangles[i + 2];
                 var face = Vector3.Cross(points[b] - points[a], points[c] - points[a]).normalized;
                 var start = _vertices.Count;
                 foreach (var v in new[] { a, b, c })
@@ -237,28 +238,28 @@ namespace ChroniclesOfRebirth.Core.Meshes
             }
         }
 
-        /// <summary>Единичная сфера: икосаэдр, дважды подразделённый (162 вершины, 320 треугольников), грани наружу.</summary>
-        static void EnsureSphere()
+        /// <summary>Единичная сфера: икосаэдр, подразделённый levels раз (2 — 162 вершины, 320 треугольников), грани наружу.</summary>
+        static (List<Vector3> vertices, List<int> triangles) Sphere(int levels)
         {
-            if (_sphereVertices != null)
-                return;
+            if (Spheres.TryGetValue(levels, out var cached))
+                return cached;
 
             var t = (1f + Mathf.Sqrt(5f)) * 0.5f;
-            _sphereVertices = new List<Vector3>
+            var vertices = new List<Vector3>
             {
                 new(-1, t, 0), new(1, t, 0), new(-1, -t, 0), new(1, -t, 0),
                 new(0, -1, t), new(0, 1, t), new(0, -1, -t), new(0, 1, -t),
                 new(t, 0, -1), new(t, 0, 1), new(-t, 0, -1), new(-t, 0, 1),
             };
-            for (var i = 0; i < _sphereVertices.Count; i++)
-                _sphereVertices[i] = _sphereVertices[i].normalized;
-            _sphereTriangles = new List<int>
+            for (var i = 0; i < vertices.Count; i++)
+                vertices[i] = vertices[i].normalized;
+            var triangles = new List<int>
             {
                 0, 11, 5, 0, 5, 1, 0, 1, 7, 0, 7, 10, 0, 10, 11, 1, 5, 9, 5, 11, 4, 11, 10, 2, 10, 7, 6, 7, 1, 8,
                 3, 9, 4, 3, 4, 2, 3, 2, 6, 3, 6, 8, 3, 8, 9, 4, 9, 5, 2, 4, 11, 6, 2, 10, 8, 6, 7, 9, 8, 1,
             };
 
-            for (var level = 0; level < 2; level++)
+            for (var level = 0; level < levels; level++)
             {
                 var midpoints = new Dictionary<long, int>();
                 int Mid(int a, int b)
@@ -266,30 +267,33 @@ namespace ChroniclesOfRebirth.Core.Meshes
                     var key = a < b ? ((long)a << 32) | (uint)b : ((long)b << 32) | (uint)a;
                     if (midpoints.TryGetValue(key, out var index))
                         return index;
-                    _sphereVertices.Add(((_sphereVertices[a] + _sphereVertices[b]) * 0.5f).normalized);
-                    midpoints[key] = _sphereVertices.Count - 1;
-                    return _sphereVertices.Count - 1;
+                    vertices.Add(((vertices[a] + vertices[b]) * 0.5f).normalized);
+                    midpoints[key] = vertices.Count - 1;
+                    return vertices.Count - 1;
                 }
 
-                var next = new List<int>(_sphereTriangles.Count * 4);
-                for (var i = 0; i < _sphereTriangles.Count; i += 3)
+                var next = new List<int>(triangles.Count * 4);
+                for (var i = 0; i < triangles.Count; i += 3)
                 {
-                    int a = _sphereTriangles[i], b = _sphereTriangles[i + 1], c = _sphereTriangles[i + 2];
+                    int a = triangles[i], b = triangles[i + 1], c = triangles[i + 2];
                     int ab = Mid(a, b), bc = Mid(b, c), ca = Mid(c, a);
                     next.AddRange(new[] { a, ab, ca, b, bc, ab, c, ca, bc, ab, bc, ca });
                 }
-                _sphereTriangles = next;
+                triangles = next;
             }
 
             // Ориентация: грань должна смотреть наружу от центра.
-            for (var i = 0; i < _sphereTriangles.Count; i += 3)
+            for (var i = 0; i < triangles.Count; i += 3)
             {
-                var a = _sphereVertices[_sphereTriangles[i]];
-                var b = _sphereVertices[_sphereTriangles[i + 1]];
-                var c = _sphereVertices[_sphereTriangles[i + 2]];
+                var a = vertices[triangles[i]];
+                var b = vertices[triangles[i + 1]];
+                var c = vertices[triangles[i + 2]];
                 if (Vector3.Dot(Vector3.Cross(b - a, c - a), a + b + c) < 0f)
-                    (_sphereTriangles[i + 1], _sphereTriangles[i + 2]) = (_sphereTriangles[i + 2], _sphereTriangles[i + 1]);
+                    (triangles[i + 1], triangles[i + 2]) = (triangles[i + 2], triangles[i + 1]);
             }
+
+            Spheres[levels] = (vertices, triangles);
+            return (vertices, triangles);
         }
 
         /// <summary>
@@ -385,6 +389,28 @@ namespace ChroniclesOfRebirth.Core.Meshes
             AddVertex(center - right + up, normal, new Vector2(uvRect.xMin, uvRect.yMax), data, color, anchor);
             AddVertex(center + right + up, normal, new Vector2(uvRect.xMax, uvRect.yMax), data, color, anchor);
             AddVertex(center + right - up, normal, new Vector2(uvRect.xMax, uvRect.yMin), data, color, anchor);
+            var tris = Submesh(submesh);
+            tris.Add(i); tris.Add(i + 1); tris.Add(i + 2);
+            tris.Add(i); tris.Add(i + 2); tris.Add(i + 3);
+        }
+
+        /// <summary>
+        /// Вертикальная карточка растения (стебли, папоротник), стоящая на земле: низ — на земле, верх качается.
+        /// Для шейдера листвы (PixelFoliage): UV1 — центр карточки и сила ветра (у нижних вершин 0 — корни на месте),
+        /// UV2 — якорь (центр карточки, радиус 0: растение не бледнеет вместе с кронами).
+        /// </summary>
+        public void AddPlantCard(int submesh, Vector3 bottomCenter, Vector3 halfRight, float height, Vector3 normal, Rect uvRect,
+            Color32 color, float wind)
+        {
+            var up = Vector3.up * height;
+            var center = bottomCenter + up * 0.5f;
+            var anchor = new Vector4(center.x, center.y, center.z, 0f);
+            var rooted = new Vector4(center.x, center.y, center.z, 0f);
+            var swaying = new Vector4(center.x, center.y, center.z, wind);
+            var i = AddVertex(bottomCenter - halfRight, normal, new Vector2(uvRect.xMin, uvRect.yMin), rooted, color, anchor);
+            AddVertex(bottomCenter - halfRight + up, normal, new Vector2(uvRect.xMin, uvRect.yMax), swaying, color, anchor);
+            AddVertex(bottomCenter + halfRight + up, normal, new Vector2(uvRect.xMax, uvRect.yMax), swaying, color, anchor);
+            AddVertex(bottomCenter + halfRight, normal, new Vector2(uvRect.xMax, uvRect.yMin), rooted, color, anchor);
             var tris = Submesh(submesh);
             tris.Add(i); tris.Add(i + 1); tris.Add(i + 2);
             tris.Add(i); tris.Add(i + 2); tris.Add(i + 3);

@@ -1,9 +1,11 @@
-using ChroniclesOfRebirth.Core.Meshes;
+using System;
+using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace ChroniclesOfRebirth.Core.World
 {
-    /// <summary>Тип поверхности клетки рельефа. Значение — индекс сабмеша верхних граней.</summary>
+    /// <summary>Тип поверхности клетки рельефа. Значение — индекс слоя в массиве текстур земли.</summary>
     public enum GroundType : byte
     {
         DeepBed,
@@ -19,39 +21,36 @@ namespace ChroniclesOfRebirth.Core.World
     }
 
     /// <summary>
-    /// Рельеф-диорама на мелкой сетке (<see cref="CellSize"/> юнита). Большинство клеток — плоские террасы
-    /// с высотой, кратной <see cref="LevelHeight"/>: их очертания задаются плавными формами с шумом, поэтому
-    /// обрывы получаются кривыми, а не прямоугольными. «Гладкие» клетки (тропы, пандусы) имеют произвольную
-    /// высоту и сглаживаются с соседями — получаются наклонные поверхности.
+    /// Рельеф — непрерывная карта высот: вершины через <see cref="VertexSpacing"/> юнита, между ними — два треугольника
+    /// (диагональ от (i, j) к (i + 1, j + 1)). Склоны плавные, обрывы — просто очень крутые участки той же поверхности;
+    /// шейдер земли сам кладёт на них текстуру обрыва. Типы земли хранятся на более мелкой сетке клеток
+    /// (<see cref="CellSize"/>), из неё строится карта для шейдера смешивания.
     /// </summary>
     public sealed class TerrainField
     {
-        public const float LevelHeight = 0.5f;
         public const float CellSize = 0.25f;
         public const int CellsPerUnit = 4;
-
-        /// <summary>Сабмеши боковин: земляной обрыв, каменная кладка и горная скала.</summary>
-        public const int SideEarth = 10, SideStone = 11, SideRock = 12, SubmeshCount = 13;
+        public const float VertexSpacing = 0.5f;
+        public const int VerticesPerUnit = 2;
 
         readonly float[] _heights;
-        readonly bool[] _smooth;
-        readonly bool[] _rockyCliff;
         readonly GroundType[] _types;
 
         /// <param name="minX">Мировая X левого края (в юнитах, целое).</param>
         /// <param name="minZ">Мировая Z нижнего края (в юнитах, целое).</param>
         /// <param name="widthUnits">Ширина в юнитах.</param>
         /// <param name="depthUnits">Глубина в юнитах.</param>
+        /// <param name="bottomHeight">Низ «юбки» по краю мира.</param>
         public TerrainField(int minX, int minZ, int widthUnits, int depthUnits, float bottomHeight)
         {
             MinX = minX;
             MinZ = minZ;
             Columns = widthUnits * CellsPerUnit;
             Rows = depthUnits * CellsPerUnit;
+            VertexColumns = widthUnits * VerticesPerUnit + 1;
+            VertexRows = depthUnits * VerticesPerUnit + 1;
             BottomHeight = bottomHeight;
-            _heights = new float[Columns * Rows];
-            _smooth = new bool[Columns * Rows];
-            _rockyCliff = new bool[Columns * Rows];
+            _heights = new float[VertexColumns * VertexRows];
             _types = new GroundType[Columns * Rows];
         }
 
@@ -59,9 +58,13 @@ namespace ChroniclesOfRebirth.Core.World
         public int MinZ { get; }
         public int Columns { get; }
         public int Rows { get; }
+        public int VertexColumns { get; }
+        public int VertexRows { get; }
         public float BottomHeight { get; }
         public float MaxX => MinX + Columns * CellSize;
         public float MaxZ => MinZ + Rows * CellSize;
+
+        // ---------- Клетки (типы земли) ----------
 
         int Index(int c, int r) => r * Columns + c;
 
@@ -77,41 +80,9 @@ namespace ChroniclesOfRebirth.Core.World
             return InBounds(c, r);
         }
 
-        public float GetHeight(int c, int r) => _heights[Index(c, r)];
-        public bool IsSmooth(int c, int r) => _smooth[Index(c, r)];
         public GroundType GetGround(int c, int r) => _types[Index(c, r)];
 
-        /// <summary>Плоская клетка на целом уровне.</summary>
-        public void SetLevel(int c, int r, int level, GroundType type)
-        {
-            var i = Index(c, r);
-            _heights[i] = level * LevelHeight;
-            _smooth[i] = false;
-            _types[i] = type;
-        }
-
-        /// <summary>Гладкая клетка с произвольной высотой (тропа, пандус).</summary>
-        public void SetSmooth(int c, int r, float height, GroundType type)
-        {
-            var i = Index(c, r);
-            _heights[i] = height;
-            _smooth[i] = true;
-            _types[i] = type;
-        }
-
         public void SetGround(int c, int r, GroundType type) => _types[Index(c, r)] = type;
-
-        /// <summary>Обрывы под клеткой — горная скала вместо земли (для гор, где поверхность сверху ещё травяная).</summary>
-        public void SetRockyCliff(int c, int r, bool rocky) => _rockyCliff[Index(c, r)] = rocky;
-
-        /// <summary>Высота поверхности под мировой точкой.</summary>
-        public float SampleHeight(float x, float z)
-        {
-            TryCell(x, z, out var c, out var r);
-            c = Mathf.Clamp(c, 0, Columns - 1);
-            r = Mathf.Clamp(r, 0, Rows - 1);
-            return GetHeight(c, r);
-        }
 
         public GroundType SampleGround(float x, float z)
         {
@@ -119,26 +90,106 @@ namespace ChroniclesOfRebirth.Core.World
             return GetGround(Mathf.Clamp(c, 0, Columns - 1), Mathf.Clamp(r, 0, Rows - 1));
         }
 
-        float HeightOrOwn(int c, int r, float own) => InBounds(c, r) ? GetHeight(c, r) : own;
-
-        /// <summary>
-        /// Высота угла клетки. dx, dz ∈ {0, 1}. Плоские клетки — ровные; гладкие усредняют четыре клетки вокруг угла.
-        /// </summary>
-        float CornerHeight(int c, int r, int dx, int dz)
+        /// <summary>Высота поверхности в центре клетки.</summary>
+        public float GetHeight(int c, int r)
         {
-            var own = GetHeight(c, r);
-            if (!IsSmooth(c, r))
-                return own;
+            var p = CellCenter(c, r);
+            return SampleHeight(p.x, p.y);
+        }
 
-            var c0 = c + dx - 1;
-            var r0 = r + dz - 1;
-            return (HeightOrOwn(c0, r0, own) + HeightOrOwn(c0 + 1, r0, own) +
-                    HeightOrOwn(c0, r0 + 1, own) + HeightOrOwn(c0 + 1, r0 + 1, own)) * 0.25f;
+        // ---------- Вершины (высоты) ----------
+
+        int VertexIndex(int i, int j) => j * VertexColumns + i;
+
+        public bool VertexInBounds(int i, int j) => i >= 0 && j >= 0 && i < VertexColumns && j < VertexRows;
+
+        public Vector2 VertexPosition(int i, int j) => new(MinX + i * VertexSpacing, MinZ + j * VertexSpacing);
+
+        public float GetVertexHeight(int i, int j) =>
+            _heights[VertexIndex(Mathf.Clamp(i, 0, VertexColumns - 1), Mathf.Clamp(j, 0, VertexRows - 1))];
+
+        public void SetVertexHeight(int i, int j, float height) => _heights[VertexIndex(i, j)] = height;
+
+        /// <summary>Ближайшая вершина к мировой точке.</summary>
+        public void NearestVertex(float x, float z, out int i, out int j)
+        {
+            i = Mathf.Clamp(Mathf.RoundToInt((x - MinX) / VertexSpacing), 0, VertexColumns - 1);
+            j = Mathf.Clamp(Mathf.RoundToInt((z - MinZ) / VertexSpacing), 0, VertexRows - 1);
         }
 
         /// <summary>
-        /// Карта типов земли для шейдера смешивания (TerrainBlend): пиксель на клетку, R = тип / 16.
-        /// Фильтрация Point — шейдер сам делает неровные границы, сдвигая точку выборки шумом.
+        /// Высота поверхности под мировой точкой — точно по треугольникам меша (то, на чём стоит герой).
+        /// </summary>
+        public float SampleHeight(float x, float z)
+        {
+            var gx = Mathf.Clamp((x - MinX) / VertexSpacing, 0f, VertexColumns - 1.001f);
+            var gz = Mathf.Clamp((z - MinZ) / VertexSpacing, 0f, VertexRows - 1.001f);
+            var i = Mathf.FloorToInt(gx);
+            var j = Mathf.FloorToInt(gz);
+            var fx = gx - i;
+            var fz = gz - j;
+            var h00 = _heights[VertexIndex(i, j)];
+            var h10 = _heights[VertexIndex(i + 1, j)];
+            var h01 = _heights[VertexIndex(i, j + 1)];
+            var h11 = _heights[VertexIndex(i + 1, j + 1)];
+            return fx > fz
+                ? h00 + (h10 - h00) * fx + (h11 - h10) * fz
+                : h00 + (h11 - h01) * fx + (h01 - h00) * fz;
+        }
+
+        /// <summary>Нормаль вершины по центральным разностям.</summary>
+        public Vector3 VertexNormal(int i, int j)
+        {
+            var dx = GetVertexHeight(i + 1, j) - GetVertexHeight(i - 1, j);
+            var dz = GetVertexHeight(i, j + 1) - GetVertexHeight(i, j - 1);
+            return new Vector3(-dx, 2f * VertexSpacing, -dz).normalized;
+        }
+
+        /// <summary>Сглаженная нормаль поверхности в мировой точке (билинейно по нормалям вершин).</summary>
+        public Vector3 SampleNormal(float x, float z)
+        {
+            var gx = Mathf.Clamp((x - MinX) / VertexSpacing, 0f, VertexColumns - 1.001f);
+            var gz = Mathf.Clamp((z - MinZ) / VertexSpacing, 0f, VertexRows - 1.001f);
+            var i = Mathf.FloorToInt(gx);
+            var j = Mathf.FloorToInt(gz);
+            var fx = gx - i;
+            var fz = gz - j;
+            var n = Vector3.Lerp(Vector3.Lerp(VertexNormal(i, j), VertexNormal(i + 1, j), fx),
+                Vector3.Lerp(VertexNormal(i, j + 1), VertexNormal(i + 1, j + 1), fx), fz);
+            return n.normalized;
+        }
+
+        /// <summary>Крутизна склона в градусах.</summary>
+        public float SampleSlope(float x, float z) => Vector3.Angle(SampleNormal(x, z), Vector3.up);
+
+        /// <summary>
+        /// Сглаживание высот: несколько проходов усреднения по соседям (крест 3×3). weight(i, j) ∈ [0, 1] — насколько
+        /// вершина поддаётся (0 — закреплена: плато, ступени, русло).
+        /// </summary>
+        public void Smooth(int passes, Func<int, int, float> weight)
+        {
+            var copy = new float[_heights.Length];
+            for (var pass = 0; pass < passes; pass++)
+            {
+                Array.Copy(_heights, copy, _heights.Length);
+                for (var j = 1; j < VertexRows - 1; j++)
+                for (var i = 1; i < VertexColumns - 1; i++)
+                {
+                    var w = weight(i, j);
+                    if (w <= 0f)
+                        continue;
+                    var k = VertexIndex(i, j);
+                    var average = (copy[k] * 4f + copy[k - 1] + copy[k + 1] + copy[k - VertexColumns] + copy[k + VertexColumns]) / 8f;
+                    _heights[k] = Mathf.Lerp(copy[k], average, w);
+                }
+            }
+        }
+
+        // ---------- Карта типов земли ----------
+
+        /// <summary>
+        /// Карта типов земли для шейдеров земли и травы: пиксель на клетку, R = тип / 16.
+        /// Фильтрация Point — шейдеры сами делают неровные границы, сдвигая точку выборки шумом.
         /// </summary>
         public Texture2D BuildGroundMap()
         {
@@ -157,176 +208,119 @@ namespace ChroniclesOfRebirth.Core.World
             return texture;
         }
 
-        public Mesh BuildMesh(string name)
+        // ---------- Меши ----------
+
+        /// <summary>Участки рельефа: квадраты по <paramref name="chunkUnits"/> юнитов в индексах вершин [i0, i1) × [j0, j1).</summary>
+        public IEnumerable<RectInt> Chunks(int chunkUnits)
         {
-            var builder = new MeshBuilder();
-            var white = new Color32(255, 255, 255, 255);
-            BuildFlatTops(builder, white);
-            BuildSmoothTops(builder, white);
-            BuildSides(builder, white);
-            return builder.Build(name);
-        }
-
-        /// <summary>Плоские клетки объединяются в прямоугольники (greedy meshing) — меньше вершин.</summary>
-        void BuildFlatTops(MeshBuilder builder, Color32 color)
-        {
-            var used = new bool[Columns * Rows];
-            for (var r = 0; r < Rows; r++)
-            for (var c = 0; c < Columns; c++)
-            {
-                var i = Index(c, r);
-                if (used[i] || _smooth[i])
-                    continue;
-
-                var h = _heights[i];
-                var type = _types[i];
-                var w = 1;
-                while (c + w < Columns && Matches(c + w, r, h, type, used))
-                    w++;
-
-                var d = 1;
-                while (r + d < Rows && RowMatches(c, r + d, w, h, type, used))
-                    d++;
-
-                for (var rr = r; rr < r + d; rr++)
-                for (var cc = c; cc < c + w; cc++)
-                    used[Index(cc, rr)] = true;
-
-                var x0 = MinX + c * CellSize;
-                var z0 = MinZ + r * CellSize;
-                var x1 = x0 + w * CellSize;
-                var z1 = z0 + d * CellSize;
-                builder.AddQuadWorldUv((int)type,
-                    new Vector3(x0, h, z0), new Vector3(x0, h, z1), new Vector3(x1, h, z1), new Vector3(x1, h, z0), color);
-            }
-        }
-
-        bool Matches(int c, int r, float h, GroundType type, bool[] used)
-        {
-            var i = Index(c, r);
-            return !used[i] && !_smooth[i] && _types[i] == type && Mathf.Abs(_heights[i] - h) < 0.001f;
-        }
-
-        bool RowMatches(int c, int r, int w, float h, GroundType type, bool[] used)
-        {
-            for (var cc = c; cc < c + w; cc++)
-                if (!Matches(cc, r, h, type, used))
-                    return false;
-            return true;
-        }
-
-        void BuildSmoothTops(MeshBuilder builder, Color32 color)
-        {
-            for (var r = 0; r < Rows; r++)
-            for (var c = 0; c < Columns; c++)
-            {
-                if (!IsSmooth(c, r))
-                    continue;
-
-                var x0 = MinX + c * CellSize;
-                var z0 = MinZ + r * CellSize;
-                var x1 = x0 + CellSize;
-                var z1 = z0 + CellSize;
-                builder.AddQuadWorldUv((int)GetGround(c, r),
-                    new Vector3(x0, CornerHeight(c, r, 0, 0), z0),
-                    new Vector3(x0, CornerHeight(c, r, 0, 1), z1),
-                    new Vector3(x1, CornerHeight(c, r, 1, 1), z1),
-                    new Vector3(x1, CornerHeight(c, r, 1, 0), z0),
-                    color);
-            }
-        }
-
-        /// <summary>Боковины между соседними клетками там, где высоты на общем ребре различаются.</summary>
-        void BuildSides(MeshBuilder builder, Color32 color)
-        {
-            for (var r = 0; r < Rows; r++)
-            for (var c = 0; c < Columns; c++)
-            {
-                var x0 = MinX + c * CellSize;
-                var z0 = MinZ + r * CellSize;
-                var x1 = x0 + CellSize;
-                var z1 = z0 + CellSize;
-
-                // Восточное ребро (общее с клеткой c + 1).
-                {
-                    var a0 = CornerHeight(c, r, 1, 0);
-                    var a1 = CornerHeight(c, r, 1, 1);
-                    float b0, b1;
-                    if (InBounds(c + 1, r)) { b0 = CornerHeight(c + 1, r, 0, 0); b1 = CornerHeight(c + 1, r, 0, 1); }
-                    else { b0 = b1 = BottomHeight; }
-                    AddEdge(builder, c, r, c + 1, r, new Vector3(x1, 0, z0), new Vector3(x1, 0, z1), a0, a1, b0, b1, true, color);
-                }
-
-                // Северное ребро (общее с клеткой r + 1).
-                {
-                    var a0 = CornerHeight(c, r, 0, 1);
-                    var a1 = CornerHeight(c, r, 1, 1);
-                    float b0, b1;
-                    if (InBounds(c, r + 1)) { b0 = CornerHeight(c, r + 1, 0, 0); b1 = CornerHeight(c, r + 1, 1, 0); }
-                    else { b0 = b1 = BottomHeight; }
-                    AddEdge(builder, c, r, c, r + 1, new Vector3(x0, 0, z1), new Vector3(x1, 0, z1), a0, a1, b0, b1, false, color);
-                }
-
-                // Западный и южный края сетки.
-                if (c == 0)
-                {
-                    var h0 = CornerHeight(c, r, 0, 0);
-                    var h1 = CornerHeight(c, r, 0, 1);
-                    AddEdge(builder, -1, r, c, r, new Vector3(x0, 0, z0), new Vector3(x0, 0, z1),
-                        BottomHeight, BottomHeight, h0, h1, true, color);
-                }
-
-                if (r == 0)
-                {
-                    var h0 = CornerHeight(c, r, 0, 0);
-                    var h1 = CornerHeight(c, r, 1, 0);
-                    AddEdge(builder, c, -1, c, r, new Vector3(x0, 0, z0), new Vector3(x1, 0, z0),
-                        BottomHeight, BottomHeight, h0, h1, false, color);
-                }
-            }
+            var step = chunkUnits * VerticesPerUnit;
+            for (var j = 0; j < VertexRows - 1; j += step)
+            for (var i = 0; i < VertexColumns - 1; i += step)
+                yield return new RectInt(i, j, Mathf.Min(step, VertexColumns - 1 - i), Mathf.Min(step, VertexRows - 1 - j));
         }
 
         /// <summary>
-        /// Ребро между клеткой A (запад/юг) и B (восток/север). e0, e1 — концы ребра (y игнорируется),
-        /// a0/a1 и b0/b1 — высоты A и B на этих концах. Грань смотрит в сторону более низкой клетки.
+        /// Поверхность участка (квады между вершинами <paramref name="quads"/>), общие вершины и гладкие нормали.
+        /// includeQuad(i, j) — брать ли квад с левым нижним углом (i, j) (null — все); vertexColor(i, j) — цвет вершины
+        /// (данные для шейдера, null — белый). skirt — опустить «юбку» до <see cref="BottomHeight"/> по краю мира.
+        /// Возвращает null, если в участке нет ни одного квада.
         /// </summary>
-        void AddEdge(MeshBuilder builder, int ac, int ar, int bc, int br, Vector3 e0, Vector3 e1,
-            float a0, float a1, float b0, float b1, bool eastEdge, Color32 color)
+        public Mesh BuildSurface(string name, RectInt quads, Func<int, int, bool> includeQuad = null,
+            Func<int, int, Color32> vertexColor = null, bool skirt = false)
         {
-            if (Mathf.Abs(a0 - b0) < 0.001f && Mathf.Abs(a1 - b1) < 0.001f)
-                return;
+            var vertices = new List<Vector3>();
+            var normals = new List<Vector3>();
+            var colors = new List<Color32>();
+            var triangles = new List<int>();
+            var map = new Dictionary<int, int>();
+            var white = new Color32(255, 255, 255, 255);
 
-            var aHigher = a0 + a1 > b0 + b1;
-            var hc = aHigher ? ac : bc;
-            var hr = aHigher ? ar : br;
-            var submesh = SideEarth;
-            if (InBounds(hc, hr))
+            int Vertex(int i, int j)
             {
-                var ground = GetGround(hc, hr);
-                if (ground == GroundType.Flagstone)
-                    submesh = SideStone;
-                else if (ground is GroundType.Rock or GroundType.Snow || _rockyCliff[Index(hc, hr)])
-                    submesh = SideRock;
+                var key = VertexIndex(i, j);
+                if (map.TryGetValue(key, out var index))
+                    return index;
+                var p = VertexPosition(i, j);
+                vertices.Add(new Vector3(p.x, _heights[key], p.y));
+                normals.Add(VertexNormal(i, j));
+                colors.Add(vertexColor?.Invoke(i, j) ?? white);
+                map[key] = vertices.Count - 1;
+                return vertices.Count - 1;
             }
 
-            Vector3 P(Vector3 e, float y) => new(e.x, y, e.z);
-
-            if (eastEdge)
+            for (var j = quads.yMin; j < quads.yMax; j++)
+            for (var i = quads.xMin; i < quads.xMax; i++)
             {
-                // Ребро вдоль Z. A выше — грань смотрит на +X, иначе на −X.
-                if (aHigher)
-                    builder.AddQuadWorldUv(submesh, P(e0, b0), P(e0, a0), P(e1, a1), P(e1, b1), color);
+                if (includeQuad != null && !includeQuad(i, j))
+                    continue;
+                // a — (i, j), b — (i, j + 1), c — (i + 1, j + 1), d — (i + 1, j); лицом вверх, диагональ a–c.
+                int a = Vertex(i, j), b = Vertex(i, j + 1), c = Vertex(i + 1, j + 1), d = Vertex(i + 1, j);
+                triangles.Add(a); triangles.Add(b); triangles.Add(c);
+                triangles.Add(a); triangles.Add(c); triangles.Add(d);
+            }
+
+            if (triangles.Count == 0)
+                return null;
+
+            if (skirt)
+                AddSkirt(quads, vertices, normals, colors, triangles);
+
+            var mesh = new Mesh { name = name };
+            if (vertices.Count > 65000)
+                mesh.indexFormat = IndexFormat.UInt32;
+            mesh.SetVertices(vertices);
+            mesh.SetNormals(normals);
+            mesh.SetColors(colors);
+            mesh.SetTriangles(triangles, 0, true);
+            return mesh;
+        }
+
+        /// <summary>Вертикальные стенки от края мира вниз: со стороны камеры у мира есть толщина, а не «бумажный» край.</summary>
+        void AddSkirt(RectInt quads, List<Vector3> vertices, List<Vector3> normals, List<Color32> colors, List<int> triangles)
+        {
+            var white = new Color32(255, 255, 255, 255);
+
+            void Wall(int i0, int j0, int i1, int j1, Vector3 outward)
+            {
+                var p0 = VertexPosition(i0, j0);
+                var p1 = VertexPosition(i1, j1);
+                var start = vertices.Count;
+                vertices.Add(new Vector3(p0.x, GetVertexHeight(i0, j0), p0.y));
+                vertices.Add(new Vector3(p1.x, GetVertexHeight(i1, j1), p1.y));
+                vertices.Add(new Vector3(p1.x, BottomHeight, p1.y));
+                vertices.Add(new Vector3(p0.x, BottomHeight, p0.y));
+                for (var k = 0; k < 4; k++)
+                {
+                    normals.Add(outward);
+                    colors.Add(white);
+                }
+
+                // Лицом наружу: лицевая сторона треугольника (a, b, c) смотрит по Cross(b − a, c − a).
+                var faceNormal = Vector3.Cross(vertices[start + 1] - vertices[start], vertices[start + 2] - vertices[start]);
+                if (Vector3.Dot(faceNormal, outward) > 0f)
+                {
+                    triangles.Add(start); triangles.Add(start + 1); triangles.Add(start + 2);
+                    triangles.Add(start); triangles.Add(start + 2); triangles.Add(start + 3);
+                }
                 else
-                    builder.AddQuadWorldUv(submesh, P(e1, a1), P(e1, b1), P(e0, b0), P(e0, a0), color);
+                {
+                    triangles.Add(start); triangles.Add(start + 2); triangles.Add(start + 1);
+                    triangles.Add(start); triangles.Add(start + 3); triangles.Add(start + 2);
+                }
             }
-            else
-            {
-                // Ребро вдоль X. A выше — грань смотрит на +Z, иначе на −Z.
-                if (aHigher)
-                    builder.AddQuadWorldUv(submesh, P(e1, b1), P(e1, a1), P(e0, a0), P(e0, b0), color);
-                else
-                    builder.AddQuadWorldUv(submesh, P(e0, a0), P(e0, b0), P(e1, b1), P(e1, a1), color);
-            }
+
+            if (quads.yMin == 0)
+                for (var i = quads.xMin; i < quads.xMax; i++)
+                    Wall(i, 0, i + 1, 0, Vector3.back);
+            if (quads.yMax == VertexRows - 1)
+                for (var i = quads.xMin; i < quads.xMax; i++)
+                    Wall(i, VertexRows - 1, i + 1, VertexRows - 1, Vector3.forward);
+            if (quads.xMin == 0)
+                for (var j = quads.yMin; j < quads.yMax; j++)
+                    Wall(0, j, 0, j + 1, Vector3.left);
+            if (quads.xMax == VertexColumns - 1)
+                for (var j = quads.yMin; j < quads.yMax; j++)
+                    Wall(VertexColumns - 1, j, VertexColumns - 1, j + 1, Vector3.right);
         }
     }
 }

@@ -20,9 +20,20 @@ namespace ChroniclesOfRebirth.Editor.Locations
         public const int PlayDepth = 170;
         public const int MarginWest = 30, MarginEast = 30, MarginSouth = 14, MarginNorth = 30;
 
-        public const int DeepLevel = -3, ShallowLevel = -1, ShoreLevel = 0, MeadowLevel = 1, PlateauLevel = 5;
+        // ---------- Высоты (юниты) ----------
+
         public const float WaterHeight = -0.15f;
-        public const float BottomHeight = -2.5f;
+        public const float BottomHeight = -3f;
+        /// <summary>Ниже — глубокая вода (не пройти), выше до уровня воды — мелководье.</summary>
+        const float DeepWaterHeight = -0.8f;
+        /// <summary>Типичная высота луга и поля.</summary>
+        const float MeadowHeight = 0.75f;
+        /// <summary>Вершина холма со святилищем.</summary>
+        public const float PlateauTop = 3.2f;
+        /// <summary>Дно оврага у Ленточного оврага и грота.</summary>
+        const float RavineFloor = 0.9f;
+        /// <summary>Склон круче — герой по нему не поднимется (как slopeLimit героя), лес на нём не растёт.</summary>
+        public const float WalkableSlope = 44f;
 
         public static readonly Vector2 PortalCenter = new(41f, 25f);
         public static readonly Vector2 PlateauRadius = new(8.5f, 6.5f);
@@ -36,7 +47,6 @@ namespace ChroniclesOfRebirth.Editor.Locations
         const float MountainStartZ = 58f;
         /// <summary>Перевал на основной тропе (Утёс Первого Взгляда) и его высота в юнитах.</summary>
         const float PassZ = 111f, PassHeight = 10f;
-        const int PassLevel = 20;
         /// <summary>Подножие северного склона: дальше поле, в котором стоит деревня.</summary>
         const float FieldZ = 140f;
         /// <summary>Сколько добавляют хребты вдали от долин.</summary>
@@ -53,6 +63,13 @@ namespace ChroniclesOfRebirth.Editor.Locations
             new Vector2[] { new(22f, 60f), new(17f, 72f), new(16f, 86f), new(28f, 98f), new(48f, PassZ) },
             new Vector2[] { new(48f, PassZ), new(62f, 104f), new(76f, 93f) },
             new Vector2[] { new(48f, 62f), new(60f, 66f), new(70f, 72f), new(62f, 58f) },
+        };
+
+        /// <summary>Ленточный овраг: русло сырого оврага от Дуба-Прадеда на восток и его отрог к Гроту Спящих Огней.</summary>
+        static readonly Vector2[][] Ravines =
+        {
+            new Vector2[] { new(55.5f, 64.6f), new(60f, 66f), new(70f, 72f) },
+            new Vector2[] { new(70f, 72f), new(66f, 64f), new(62f, 58.6f) },
         };
 
         // ---------- Типы данных ----------
@@ -110,8 +127,7 @@ namespace ChroniclesOfRebirth.Editor.Locations
             public string En;
             public Vector2 Center;
             public float Radius;
-            public int Level;           // NaturalLevel — взять уровень окружающего рельефа в центре
-            public bool Flatten = true; // false — только зона и маркеры, рельеф не трогаем (брод)
+            public bool Flatten = true; // false — только зона и маркеры, рельеф не трогаем (овраг, брод)
             public GroundType Ground;
         }
 
@@ -122,25 +138,23 @@ namespace ChroniclesOfRebirth.Editor.Locations
             public bool FollowTerrain = true;
         }
 
-        const int NaturalLevel = int.MinValue;
-
         // ---------- Поляны и тропы (граф из 02_OldForest.md) ----------
 
         static readonly Glade[] Glades =
         {
-            new() { Id = "snarepath", Ru = "Тропа Силков", En = "Snarepath", Center = new(9f, 46f), Radius = 5f, Level = NaturalLevel, Ground = GroundType.GrassLeaves },
-            new() { Id = "rutted_glade", Ru = "Колейная поляна", En = "Rutted Glade", Center = new(22f, 60f), Radius = 7f, Level = NaturalLevel, Ground = GroundType.Grass },
-            new() { Id = "grandfather_oak", Ru = "Дуб-Прадед", En = "Grandfather Oak", Center = new(48f, 62f), Radius = 8.5f, Level = NaturalLevel, Ground = GroundType.GrassLeaves },
-            new() { Id = "ribbon_hollow", Ru = "Ленточный овраг", En = "Ribbon Hollow", Center = new(70f, 72f), Radius = 6f, Level = 1, Ground = GroundType.ForestFloor },
-            new() { Id = "sleeping_lights_grotto", Ru = "Грот Спящих Огней", En = "Grotto of Sleeping Lights", Center = new(62f, 58f), Radius = 3.8f, Level = 1, Ground = GroundType.ForestFloor },
-            new() { Id = "smoulder_camp", Ru = "Тлеющий лагерь", En = "Smoulder Camp", Center = new(16f, 86f), Radius = 6f, Level = NaturalLevel, Ground = GroundType.Grass },
-            new() { Id = "first_sight_bluff", Ru = "Утёс Первого Взгляда", En = "First Sight Bluff", Center = new(48f, PassZ), Radius = 7f, Level = PassLevel, Ground = GroundType.Grass },
-            new() { Id = "stepstone_ford", Ru = "Каменный брод", En = "Stepstone Ford", Center = new(78f, 92f), Radius = 5f, Level = NaturalLevel, Flatten = false, Ground = GroundType.Pebbles },
+            new() { Id = "snarepath", Ru = "Тропа Силков", En = "Snarepath", Center = new(9f, 46f), Radius = 5f, Ground = GroundType.GrassLeaves },
+            new() { Id = "rutted_glade", Ru = "Колейная поляна", En = "Rutted Glade", Center = new(22f, 60f), Radius = 7f, Ground = GroundType.Grass },
+            new() { Id = "grandfather_oak", Ru = "Дуб-Прадед", En = "Grandfather Oak", Center = new(48f, 62f), Radius = 8.5f, Ground = GroundType.GrassLeaves },
+            new() { Id = "ribbon_hollow", Ru = "Ленточный овраг", En = "Ribbon Hollow", Center = new(70f, 72f), Radius = 6f, Flatten = false, Ground = GroundType.ForestFloor },
+            new() { Id = "sleeping_lights_grotto", Ru = "Грот Спящих Огней", En = "Grotto of Sleeping Lights", Center = new(62f, 58f), Radius = 3.8f, Flatten = false, Ground = GroundType.ForestFloor },
+            new() { Id = "smoulder_camp", Ru = "Тлеющий лагерь", En = "Smoulder Camp", Center = new(16f, 86f), Radius = 6f, Ground = GroundType.Grass },
+            new() { Id = "first_sight_bluff", Ru = "Утёс Первого Взгляда", En = "First Sight Bluff", Center = new(48f, PassZ), Radius = 7f, Ground = GroundType.Grass },
+            new() { Id = "stepstone_ford", Ru = "Каменный брод", En = "Stepstone Ford", Center = new(78f, 92f), Radius = 5f, Flatten = false, Ground = GroundType.Pebbles },
         };
 
         /// <summary>
         /// Редколесья: большие открытые участки внутри леса с редкими деревьями — по ним можно бродить свободно.
-        /// Перепады высот внутри сглажены до одной ступеньки.
+        /// Холмы внутри вдвое положе, чем в лесу вокруг.
         /// </summary>
         static readonly (string id, Vector2 center, float radius)[] Woodlands =
         {
@@ -165,8 +179,8 @@ namespace ChroniclesOfRebirth.Editor.Locations
             new() { Points = new Vector2[] { new(48f, 62f), new(60f, 66f), new(70f, 72f) }, Width = 2f },
             new() { Points = new Vector2[] { new(70f, 72f), new(66f, 64f), new(62f, 58f) }, Width = 1.8f, FollowTerrain = false },
             // От перевала вниз к броду, и речная тропа по ущелью Медвянки.
-            new() { Points = new Vector2[] { new(48f, PassZ), new(62f, 104f), new(76f, 93f) }, Width = 2f },
-            new() { Points = new Vector2[] { new(78f, 12f), new(84f, 28f), new(85f, 50f), new(80f, 72f), new(74f, 89f) }, Width = 2f },
+            new() { Points = new Vector2[] { new(48f, PassZ), new(62f, 104f), new(74.5f, 94f) }, Width = 2f },
+            new() { Points = new Vector2[] { new(78f, 12f), new(82.5f, 28f), new(83f, 50f), new(79f, 72f), new(74f, 89f) }, Width = 2f },
         };
 
         /// <summary>
@@ -211,12 +225,21 @@ namespace ChroniclesOfRebirth.Editor.Locations
         public List<TreePlacement> Trees { get; } = new();
         public List<Vector3> Bushes { get; } = new();
         public List<Vector4> Rocks { get; } = new();
+        /// <summary>Мелкие камни (галька у воды, камешки на тропах): xyz — позиция, w — размер.</summary>
+        public List<Vector4> Pebbles { get; } = new();
         public List<GroundSprite> GroundSprites { get; } = new();
         public List<MarkerPlacement> Markers { get; } = new();
+        /// <summary>Каменные блоки южной лестницы святилища: центр и размер (ступени — сложенные друг на друга блоки).</summary>
+        public List<(Vector3 center, Vector3 size)> StairBlocks { get; } = new();
 
         readonly bool[] _walkable;
+        /// <summary>Клетки, тип земли которых задан вручную (плато, ступени).</summary>
         readonly bool[] _locked;
         readonly bool[] _trail;
+        /// <summary>Вершины, высоту которых задали вручную (плато, лестница): их не трогают тропы и сглаживание.</summary>
+        readonly bool[] _lockedVertex;
+        /// <summary>Вершины троп: сглаживание их почти не трогает, иначе дорога «расплывается».</summary>
+        readonly bool[] _trailVertex;
 
         public SilverrunValeLayout()
         {
@@ -225,20 +248,26 @@ namespace ChroniclesOfRebirth.Editor.Locations
             _walkable = new bool[Field.Columns * Field.Rows];
             _locked = new bool[Field.Columns * Field.Rows];
             _trail = new bool[Field.Columns * Field.Rows];
+            _lockedVertex = new bool[Field.VertexColumns * Field.VertexRows];
+            _trailVertex = new bool[Field.VertexColumns * Field.VertexRows];
 
+            // Рельеф: природная форма → холм святилища → мягкие поляны → тропы врезаются в склоны → лестница → брод.
             BuildBaseTerrain();
             BuildPlateau();
             BuildWoodlands();
             BuildGlades();
-            BuildStairs();
             BuildTrails();
+            BuildStairs();
             BuildFord();
+            Field.Smooth(2, (i, j) => _lockedVertex[VertexIndex(i, j)] ? 0f : _trailVertex[VertexIndex(i, j)] ? 0.15f : 0.5f);
+            ClassifyGround();
             BuildWalkable();
 
             PlaceShoreTrees();
             PlaceForest();
             PlaceBushes();
             PlaceRocks();
+            PlacePebbles();
             PlaceGroundSprites();
             PlacePointsOfInterest();
         }
@@ -246,6 +275,43 @@ namespace ChroniclesOfRebirth.Editor.Locations
         public bool IsWalkable(int c, int r) => Field.InBounds(c, r) && _walkable[r * Field.Columns + c];
 
         public bool IsWalkableAt(float x, float z) => Field.TryCell(x, z, out var c, out var r) && IsWalkable(c, r);
+
+        // ---------- Травяной покров ----------
+
+        /// <summary>
+        /// Нужен ли слоям травы квад рельефа с левым нижним углом в вершине (i, j): есть ли рядом (с запасом в клетку —
+        /// шейдер делает границы неровными) земля, на которой растёт трава, мох или редкие травинки.
+        /// </summary>
+        public bool QuadHasCover(int i, int j)
+        {
+            var cellsPerVertex = TerrainField.CellsPerUnit / TerrainField.VerticesPerUnit;
+            for (var r = j * cellsPerVertex - 1; r <= (j + 1) * cellsPerVertex; r++)
+            for (var c = i * cellsPerVertex - 1; c <= (i + 1) * cellsPerVertex; c++)
+            {
+                if (!Field.InBounds(c, r))
+                    continue;
+                if (Field.GetGround(c, r) is GroundType.Grass or GroundType.GrassLeaves or GroundType.ForestFloor or GroundType.Pebbles)
+                    return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Высота травы в вершине (R цвета вершины, 0–1): на обрывах травы нет, у троп она примята,
+        /// местами луг сочнее и выше.
+        /// </summary>
+        public Color32 GrassVertexColor(int i, int j)
+        {
+            var p = Field.VertexPosition(i, j);
+            var scale = 0.78f * Mathf.Lerp(0.8f, 1.28f, Noise(p.x, p.y, 10f, 173));
+            scale *= 1f - Smooth(30f, 42f, Field.SampleSlope(p.x, p.y));
+            if (NearTrail(p, 0.6f))
+                scale *= 0.45f;
+            else if (NearTrail(p, 1.3f))
+                scale *= 0.75f;
+            var r = (byte)Mathf.RoundToInt(Mathf.Clamp01(scale) * 255f);
+            return new Color32(r, 255, 255, 255);
+        }
 
         public static bool InPlayArea(float x, float z) => x >= 0f && z >= 0f && x < PlayWidth && z < PlayDepth;
 
@@ -294,11 +360,11 @@ namespace ChroniclesOfRebirth.Editor.Locations
         /// <summary>Высота дна долин: плавный подъём от дуба к перевалу и спуск к полю.</summary>
         static float ValleyFloor(float z) => z <= PassZ
             ? PassHeight * Smooth(MountainStartZ, PassZ, z)
-            : Mathf.Lerp(PassHeight, MeadowLevel * TerrainField.LevelHeight, Smooth(PassZ, FieldZ, z));
+            : Mathf.Lerp(PassHeight, MeadowHeight, Smooth(PassZ, FieldZ, z));
 
         /// <summary>
         /// Непрерывная высота гор в юнитах: дно долин + хребты вдали от долин + скальные гребни.
-        /// У ручья Медвянки горы опускаются к воде — получается ущелье.
+        /// Ущелье Медвянки прорезает потом <see cref="CarveStream"/>.
         /// </summary>
         static float MountainHeight(float x, float z)
         {
@@ -310,13 +376,140 @@ namespace ChroniclesOfRebirth.Editor.Locations
             var crag = ((Noise(x, z, 6f, 103) - 0.5f) * 2.5f + Ridged(x, z, 10f, 107) * 2.2f) *
                        Smooth(MountainStartZ, MountainStartZ + 25f, z) * (1f - Smooth(FieldZ - 14f, FieldZ, z)) *
                        (0.3f + 0.7f * Smooth(3f, 14f, d));
-            var h = ValleyFloor(z) + ridge + crag;
-            var floor = MeadowLevel * TerrainField.LevelHeight;
-            return Mathf.Max(floor, Mathf.Lerp(floor, h, Smooth(5f, 16f, StreamDistance(x, z))));
+            return Mathf.Max(MeadowHeight, ValleyFloor(z) + ridge + crag);
         }
 
         static float StreamDistance(float x, float z) => DistanceToPolyline(new Vector2(x, z), StreamPath, out _, out _) +
                                                          (Noise(x, z, 5f, 11) - 0.5f) * 0.8f;
+
+        // ---------- Форма земли ----------
+
+        /// <summary>Луг между рекой и лесом: пологие волны, редкие бугры, к опушке земля поднимается.</summary>
+        static float MeadowLand(float x, float z)
+        {
+            var waves = (Noise(x, z, 14f, 29) - 0.5f) * 0.9f;
+            var hummocks = Mathf.Max(0f, Noise(x, z, 5f, 31) - 0.6f) * 2.2f;
+            return MeadowHeight + waves + hummocks + 0.7f * Smooth(ForestEdge(x, z) - 12f, ForestEdge(x, z), z);
+        }
+
+        /// <summary>Лес: холмы и ложбины, к Дубу-Прадеду земля в целом поднимается.</summary>
+        static float ForestLand(float x, float z)
+        {
+            var hills = (Noise(x, z, 22f, 23) - 0.5f) * 6f;
+            var rolls = (Noise(x, z, 8f, 24) - 0.5f) * 1.4f;
+            return Mathf.Max(0.6f, 1.6f + 1.2f * Smooth(28f, 60f, z) + hills + rolls);
+        }
+
+        /// <summary>Поле у деревни: широкие пологие волны.</summary>
+        static float FieldLand(float x, float z) => MeadowHeight + (Noise(x, z, 18f, 33) - 0.5f) * 1.1f;
+
+        /// <summary>Нормированное расстояние до центра плато святилища (1 — край вершины холма).</summary>
+        static float PlateauDistance(float x, float z)
+        {
+            var wobble = 1f + (Noise(x, z, 4f, 13) - 0.5f) * 0.12f;
+            var dx = (x - PortalCenter.x) / (PlateauRadius.x * wobble);
+            var dz = (z - PortalCenter.y) / (PlateauRadius.y * wobble);
+            return Mathf.Sqrt(dx * dx + dz * dz);
+        }
+
+        static float RavineDistance(float x, float z)
+        {
+            var p = new Vector2(x, z);
+            var best = float.MaxValue;
+            foreach (var ravine in Ravines)
+                best = Mathf.Min(best, DistanceToPolyline(p, ravine, out _, out _));
+            return best + (Noise(x, z, 4f, 141) - 0.5f) * 1.2f;
+        }
+
+        /// <summary>
+        /// Природная высота точки: луг → лес → горы → поле, затем вода прорезает своё: овраг, долина ручья, русло реки.
+        /// Профили рассчитаны на вид сверху под углом: берега и стенки оврага местами крутые (обрывы видны),
+        /// местами пологие (к воде можно спуститься).
+        /// </summary>
+        static float BaseHeight(float x, float z)
+        {
+            var edge = ForestEdge(x, z);
+            var h = Mathf.Lerp(MeadowLand(x, z), ForestLand(x, z), Smooth(edge - 4f, edge + 7f, z));
+            var m = MountainBlend(z);
+            if (m > 0f)
+                h = Mathf.Lerp(h, Mathf.Max(h, MountainHeight(x, z)), m);
+            var field = FieldStart(x, z);
+            h = Mathf.Lerp(h, FieldLand(x, z), Smooth(field - 2f, field + 4f, z));
+
+            h = CarveRavine(x, z, h);
+            h = CarveStream(x, z, h);
+            return CarveRiver(x, z, h);
+        }
+
+        /// <summary>Ленточный овраг: ровное сырое дно и крутые стенки, местами — скальные.</summary>
+        static float CarveRavine(float x, float z, float h)
+        {
+            var d = RavineDistance(x, z);
+            // Овраг прорезает отрог: земля вдоль него приподнята, стенки выходят высокими.
+            h += 1.4f * (1f - Smooth(4f, 12f, d));
+            const float floorHalf = 2.4f;
+            var wall = Mathf.Lerp(1.3f, 3f, Noise(x, z, 6f, 143));
+            if (d > floorHalf + wall)
+                return h;
+            var floor = RavineFloor + (d / floorHalf) * (d / floorHalf) * 0.25f;
+            var profile = d < floorHalf ? floor : Mathf.Lerp(RavineFloor + 0.25f, h, Smooth(floorHalf, floorHalf + wall, d));
+            return Mathf.Min(h, profile);
+        }
+
+        /// <summary>
+        /// Долина ручья Медвянки: русло, галечные отмели, луговое дно долины, склоны к окружающей земле.
+        /// В горах склоны крутые — ущелье.
+        /// </summary>
+        static float CarveStream(float x, float z, float h)
+        {
+            var ds = StreamDistance(x, z);
+            var valley = 6.5f + Noise(x, z, 7f, 19) * 2f;
+            var wall = Mathf.Lerp(3f, 11f, MountainBlend(z)) * Mathf.Lerp(0.7f, 1.3f, Noise(x, z, 9f, 145));
+            if (ds > valley + wall)
+                return h;
+
+            float profile;
+            if (ds < 1.5f)
+                profile = Mathf.Lerp(-0.6f, -0.35f, ds / 1.5f);
+            else if (ds < 2.8f)
+                profile = Mathf.Lerp(-0.35f, 0.3f, Smooth(1.5f, 2.8f, ds));
+            else if (ds < valley)
+                profile = Mathf.Lerp(0.3f, MeadowHeight, Smooth(2.8f, valley, ds)) + (Noise(x, z, 6f, 147) - 0.5f) * 0.3f;
+            else
+                profile = Mathf.Lerp(MeadowHeight, h, Smooth(valley, valley + wall, ds));
+            return Mathf.Min(h, profile);
+        }
+
+        /// <summary>
+        /// Серебрянка: глубокое русло, мелководье, южный галечный пляж и северный берег — широкая отмель,
+        /// над ней земляной берег, где-то подмытый и крутой, где-то пологий.
+        /// </summary>
+        static float CarveRiver(float x, float z, float h)
+        {
+            var signed = z - RiverCenter(x) + (Noise(x, z, 6f, 3) - 0.5f) * 0.9f;
+            var d = Mathf.Abs(signed);
+            if (d < 3.8f)
+            {
+                var t = d / 3.8f;
+                return Mathf.Min(h, Mathf.Lerp(-1.45f, -0.3f, Smooth(0.35f, 1f, t)));
+            }
+
+            float profile;
+            if (signed < 0f)
+            {
+                profile = d < 5.5f
+                    ? Mathf.Lerp(-0.3f, 0.3f, Smooth(3.8f, 5.5f, d))
+                    : Mathf.Lerp(0.3f, h, Smooth(5.5f, 9f, d));
+            }
+            else
+            {
+                var bank = Mathf.Lerp(0.7f, 4f, Noise(x, z, 9f, 37));
+                profile = d < 6.8f
+                    ? Mathf.Lerp(-0.3f, 0.25f, Smooth(3.8f, 6.8f, d))
+                    : Mathf.Lerp(0.25f, h, Smooth(6.8f, 6.8f + bank, d));
+            }
+            return Mathf.Min(h, profile);
+        }
 
         static float DistanceToPolyline(Vector2 p, Vector2[] path, out int segment, out float t)
         {
@@ -338,13 +531,7 @@ namespace ChroniclesOfRebirth.Editor.Locations
             return best;
         }
 
-        bool InPlateau(float x, float z, float scale = 1f)
-        {
-            var wobble = 1f + (Noise(x, z, 4f, 13) - 0.5f) * 0.12f;
-            var dx = (x - PortalCenter.x) / (PlateauRadius.x * scale * wobble);
-            var dz = (z - PortalCenter.y) / (PlateauRadius.y * scale * wobble);
-            return dx * dx + dz * dz <= 1f;
-        }
+        static bool InPlateau(float x, float z, float scale = 1f) => PlateauDistance(x, z) <= scale;
 
         static bool InFlagstones(float x, float z)
         {
@@ -390,88 +577,29 @@ namespace ChroniclesOfRebirth.Editor.Locations
 
         int CellIndex(int c, int r) => r * Field.Columns + c;
 
+        int VertexIndex(int i, int j) => j * Field.VertexColumns + i;
+
         // ---------- Рельеф ----------
 
         void BuildBaseTerrain()
         {
-            // 1. Низины (река, ручей, луга, поле) — сразу; лес и горы — непрерывной высотой для второго прохода.
-            var highland = new float[Field.Columns * Field.Rows];
-            for (var r = 0; r < Field.Rows; r++)
-            for (var c = 0; c < Field.Columns; c++)
+            for (var j = 0; j < Field.VertexRows; j++)
+            for (var i = 0; i < Field.VertexColumns; i++)
             {
-                var p = Field.CellCenter(c, r);
-                var i = CellIndex(c, r);
-                if (TryLowland(p.x, p.y, out var level, out var ground))
-                {
-                    Field.SetLevel(c, r, level, ground);
-                    highland[i] = float.NaN;
-                    continue;
-                }
-
-                var m = MountainBlend(p.y);
-                var forest = ForestLevel(p.x, p.y) * TerrainField.LevelHeight;
-                highland[i] = m <= 0f ? forest : Mathf.Lerp(forest, Mathf.Max(forest, MountainHeight(p.x, p.y)), m);
-            }
-
-            // 2. Лес и горы: террасы, шаг которых зависит от крутизны склона.
-            for (var r = 0; r < Field.Rows; r++)
-            for (var c = 0; c < Field.Columns; c++)
-            {
-                var h = highland[CellIndex(c, r)];
-                if (float.IsNaN(h))
-                    continue;
-                var p = Field.CellCenter(c, r);
-                var m = MountainBlend(p.y);
-                if (m <= 0f)
-                {
-                    Field.SetLevel(c, r, ForestLevel(p.x, p.y), GroundType.ForestFloor);
-                    continue;
-                }
-
-                var slope = Slope(highland, c, r, h);
-                var step = MountainStep(slope);
-                var level = Mathf.Max(MeadowLevel, Mathf.RoundToInt(h / TerrainField.LevelHeight / step) * step);
-                Field.SetLevel(c, r, level, MountainGround(p.x, p.y, level * TerrainField.LevelHeight, step, m));
-                Field.SetRockyCliff(c, r, m > 0.3f);
+                var p = Field.VertexPosition(i, j);
+                Field.SetVertexHeight(i, j, BaseHeight(p.x, p.y));
             }
         }
 
         /// <summary>Доля «горности»: 0 в лесу южнее дуба, 1 — в горах.</summary>
         static float MountainBlend(float z) => Smooth(MountainStartZ, MountainStartZ + 16f, z);
 
-        /// <summary>Уровень лесного рельефа (как раньше: мягкие террасы 2–6).</summary>
-        static int ForestLevel(float x, float z) => Mathf.Clamp(3 + Mathf.RoundToInt((Noise(x, z, 22f, 23) - 0.5f) * 6f), 2, 6);
-
-        /// <summary>
-        /// Шаг террас в уровнях по крутизне: пологий склон — ступени по 0,5 (просто идёшь), средний — по 1 юниту
-        /// (запрыгнуть), крутой — по 2 юнита (скальная стена, только обойти).
-        /// </summary>
-        static int MountainStep(float slope) => slope < 0.55f ? 1 : slope < 1.1f ? 2 : 4;
-
-        /// <summary>Крутизна по непрерывной высоте: разности через две клетки в каждую сторону.</summary>
-        float Slope(float[] heights, int c, int r, float own)
-        {
-            float H(int cc, int rr)
-            {
-                if (!Field.InBounds(cc, rr))
-                    return own;
-                var v = heights[CellIndex(cc, rr)];
-                return float.IsNaN(v) ? own : v;
-            }
-
-            const int k = 2;
-            var span = 2 * k * TerrainField.CellSize;
-            var dx = (H(c + k, r) - H(c - k, r)) / span;
-            var dz = (H(c, r + k) - H(c, r - k)) / span;
-            return Mathf.Sqrt(dx * dx + dz * dz);
-        }
-
-        static GroundType MountainGround(float x, float z, float height, int step, float m)
+        static GroundType MountainGround(float x, float z, float height, float slope, float m)
         {
             if (height >= SnowLine + (Noise(x, z, 8f, 109) - 0.5f) * 3f)
                 return GroundType.Snow;
 
-            var rocky = step >= 2 || (height > 8.5f && Noise(x, z, 5f, 111) > 0.5f) || Noise(x, z, 4f, 113) > 0.74f;
+            var rocky = slope > 34f || (height > 8.5f && Noise(x, z, 5f, 111) > 0.5f) || Noise(x, z, 4f, 113) > 0.74f;
             if (rocky && m > 0.4f)
                 return GroundType.Rock;
 
@@ -481,63 +609,36 @@ namespace ChroniclesOfRebirth.Editor.Locations
             return GroundType.Grass;
         }
 
-        bool TryLowland(float x, float z, out int level, out GroundType ground)
-        {
-            (level, ground) = (0, GroundType.Grass);
-            var cell = LowlandCell(x, z);
-            if (cell == null)
-                return false;
-            (level, ground) = cell.Value;
-            return true;
-        }
-
-        /// <summary>Река, ручей, луга и поле; null — лес или горы (их считает второй проход).</summary>
-        (int level, GroundType ground)? LowlandCell(float x, float z)
-        {
-            var rc = RiverCenter(x);
-            var signed = z - rc + (Noise(x, z, 6f, 3) - 0.5f) * 0.9f;
-            var d = Mathf.Abs(signed);
-
-            if (d < 2.3f) return (DeepLevel, GroundType.DeepBed);
-            if (d < 3.8f) return (ShallowLevel, GroundType.ShallowBed);
-            if (signed < 0f) return d < 5f ? (ShoreLevel, GroundType.Pebbles) : (MeadowLevel, GroundType.Grass);
-
-            // Долина ручья Медвянки.
-            var ds = StreamDistance(x, z);
-            if (ds < 1.5f) return (ShallowLevel, GroundType.ShallowBed);
-            if (ds < 2.8f) return (ShoreLevel, GroundType.Pebbles);
-            if (ds < 6.5f + Noise(x, z, 7f, 19) * 2f) return (MeadowLevel, GroundType.Grass);
-
-            if (d < 6.8f) return (ShoreLevel, GroundType.Pebbles);
-
-            if (z > FieldStart(x, z)) return (MeadowLevel, GroundType.Grass);
-
-            if (z > ForestEdge(x, z))
-                return null;
-
-            // Луг между берегом и лесом с редкими пригорками.
-            return Noise(x, z, 8f, 29) > 0.68f ? (2, GroundType.Grass) : (MeadowLevel, GroundType.Grass);
-        }
-
+        /// <summary>
+        /// Холм святилища: ровная вершина-плато и крутые скальные бока. Наверх ведут лестница с юга
+        /// (<see cref="BuildStairs"/>) и тропа с севера — её пандус врезает в склон <see cref="BuildTrails"/>.
+        /// </summary>
         void BuildPlateau()
         {
+            for (var j = 0; j < Field.VertexRows; j++)
+            for (var i = 0; i < Field.VertexColumns; i++)
+            {
+                var p = Field.VertexPosition(i, j);
+                var e = PlateauDistance(p.x, p.y);
+                if (e > 1.45f)
+                    continue;
+                // Бока неровные — выступы скалы, а не идеальный конус.
+                var shoulder = 1f + Mathf.Max(0f, Noise(p.x, p.y, 2.5f, 151) - 0.5f) * 0.36f;
+                var natural = Mathf.Min(Field.GetVertexHeight(i, j), PlateauTop);
+                Field.SetVertexHeight(i, j, Mathf.Lerp(PlateauTop, natural, Smooth(shoulder, 1.45f, e)));
+                if (e <= 1f)
+                    _lockedVertex[VertexIndex(i, j)] = true;
+            }
+
             for (var r = 0; r < Field.Rows; r++)
             for (var c = 0; c < Field.Columns; c++)
             {
                 var p = Field.CellCenter(c, r);
                 if (!InPlateau(p.x, p.y))
                     continue;
-                Field.SetLevel(c, r, PlateauLevel, InFlagstones(p.x, p.y) ? GroundType.Flagstone : GroundType.Grass);
+                Field.SetGround(c, r, InFlagstones(p.x, p.y) ? GroundType.Flagstone : GroundType.Grass);
                 _locked[CellIndex(c, r)] = true;
             }
-        }
-
-        int GladeLevel(Glade glade)
-        {
-            if (glade.Level != NaturalLevel)
-                return glade.Level;
-            Field.TryCell(glade.Center.x, glade.Center.y, out var c, out var r);
-            return Mathf.RoundToInt(Field.GetHeight(c, r) / TerrainField.LevelHeight);
         }
 
         static bool InWoodland(float x, float z)
@@ -552,70 +653,195 @@ namespace ChroniclesOfRebirth.Editor.Locations
         {
             foreach (var w in Woodlands)
             {
-                Field.TryCell(w.center.x, w.center.y, out var cc, out var cr);
-                var centerLevel = Mathf.RoundToInt(Field.GetHeight(cc, cr) / TerrainField.LevelHeight);
                 var seed = StableHash(w.id);
-
-                ForCellsAround(w.center, w.radius * 1.4f, (c, r, p) =>
-                {
-                    if (_locked[CellIndex(c, r)] || IsWater(c, r) || BlobDistance(w.center, w.radius, seed, p.x, p.y) > 1f)
-                        return;
-                    // Внутри редколесья перепад не больше одной ступеньки — везде можно пройти.
-                    var natural = Mathf.RoundToInt(Field.GetHeight(c, r) / TerrainField.LevelHeight);
-                    var level = natural > centerLevel ? centerLevel + 1 : centerLevel;
-                    var ground = Noise(p.x, p.y, 5f, seed + 3) > 0.5f ? GroundType.GrassLeaves : GroundType.ForestFloor;
-                    Field.SetLevel(c, r, level, ground);
-                });
+                var mean = MeanHeight(w.center, w.radius, (x, z) => BlobDistance(w.center, w.radius, seed, x, z) < 1f);
+                SoftenAround(w.center, w.radius * 1.5f, (x, z) => BlobDistance(w.center, w.radius, seed, x, z), mean, 0.5f);
             }
         }
 
+        /// <summary>Поляны: земля мягко сходится к средней высоте поляны, но лёгкие волны остаются — не стол.</summary>
         void BuildGlades()
         {
             foreach (var glade in Glades)
             {
                 if (!glade.Flatten)
                     continue;
-
-                var level = GladeLevel(glade);
-                ForCellsAround(glade.Center, glade.Radius * 1.4f, (c, r, p) =>
-                {
-                    if (_locked[CellIndex(c, r)] || GladeDistance(glade, p.x, p.y) > 1f)
-                        return;
-                    Field.SetLevel(c, r, level, glade.Ground);
-                });
+                var mean = MeanHeight(glade.Center, glade.Radius, (x, z) => GladeDistance(glade, x, z) < 1f);
+                SoftenAround(glade.Center, glade.Radius * 1.5f, (x, z) => GladeDistance(glade, x, z), mean, 0.25f);
             }
         }
 
+        float MeanHeight(Vector2 center, float radius, System.Func<float, float, bool> inside)
+        {
+            var sum = 0f;
+            var n = 0;
+            ForVerticesAround(center, radius * 1.5f, (i, j, p) =>
+            {
+                if (!inside(p.x, p.y))
+                    return;
+                sum += Field.GetVertexHeight(i, j);
+                n++;
+            });
+            return n > 0 ? sum / n : Field.SampleHeight(center.x, center.y);
+        }
+
+        /// <summary>
+        /// Внутри области (distance &lt; 0,85) перепады сжимаются к mean — остаётся доля keep; к краю (1,3) — плавный переход.
+        /// Холм святилища и закреплённые вершины не трогаем.
+        /// </summary>
+        void SoftenAround(Vector2 center, float reach, System.Func<float, float, float> distance, float mean, float keep)
+        {
+            ForVerticesAround(center, reach, (i, j, p) =>
+            {
+                if (_lockedVertex[VertexIndex(i, j)] || PlateauDistance(p.x, p.y) < 1.5f)
+                    return;
+                var w = 1f - Smooth(0.85f, 1.3f, distance(p.x, p.y));
+                if (w <= 0f)
+                    return;
+                var h = Field.GetVertexHeight(i, j);
+                if (h < 0f)
+                    return; // русла и отмели не поднимаем
+                Field.SetVertexHeight(i, j, Mathf.Lerp(h, mean + (h - mean) * keep, w));
+            });
+        }
+
+        /// <summary>
+        /// Южная лестница святилища: пандус в рельефе (по нему идёт герой) и каменные блоки ступеней поверх.
+        /// Рукотворная — единственное место с прямыми углами.
+        /// </summary>
         void BuildStairs()
         {
-            // Южная лестница святилища: луг (1) → 2 → 3 → 4 → плато (5). Рукотворная — прямые ступени.
-            for (var x = 39f; x < 43f; x += TerrainField.CellSize)
+            const float x0 = 38.6f, x1 = 43.4f, zTop = 18.9f, run = 0.55f, riseTarget = 0.3f;
+            var estimate = zTop - Mathf.CeilToInt((PlateauTop - Field.SampleHeight(41f, 14.5f)) / riseTarget) * run;
+            var bottom = Field.SampleHeight(41f, estimate - 0.5f);
+            var rise = PlateauTop - bottom;
+            var steps = Mathf.Max(2, Mathf.CeilToInt(rise / riseTarget));
+            var stepRise = rise / steps;
+            var zBottom = zTop - steps * run;
+
+            // Пандус: вершины коридора лестницы — по прямой от подножия к плато.
+            ForVerticesAround(new Vector2((x0 + x1) * 0.5f, (zBottom + zTop) * 0.5f), (zTop - zBottom) * 0.5f + 3f, (i, j, p) =>
             {
-                SetStep(x, 16f, 17f, 2);
-                SetStep(x, 17f, 18f, 3);
-                SetStep(x, 18f, 19f, 4);
-            }
+                if (p.x < x0 || p.x > x1 || p.y < zBottom - 0.6f || p.y > zTop + 0.6f)
+                    return;
+                Field.SetVertexHeight(i, j, Mathf.Lerp(bottom, PlateauTop, Mathf.InverseLerp(zBottom, zTop, p.y)));
+                _lockedVertex[VertexIndex(i, j)] = true;
+            });
 
-            // Северный выход в лес — плавный пандус: его делает основная тропа, начинающаяся на плато.
-        }
-
-        void SetStep(float x, float z0, float z1, int level)
-        {
-            for (var z = z0; z < z1; z += TerrainField.CellSize)
+            for (var z = zBottom; z < zTop; z += TerrainField.CellSize)
+            for (var x = x0; x < x1; x += TerrainField.CellSize)
             {
                 if (!Field.TryCell(x + 0.01f, z + 0.01f, out var c, out var r))
                     continue;
-                Field.SetLevel(c, r, level, GroundType.Flagstone);
+                Field.SetGround(c, r, GroundType.Flagstone);
                 _locked[CellIndex(c, r)] = true;
+            }
+
+            // Ступени — блоки, сложенные «лесенкой»: каждый от подножия до верха плато, всё короче и выше.
+            const float back = zTop + 0.4f;
+            for (var k = 0; k < steps; k++)
+            {
+                var top = bottom + (k + 1) * stepRise;
+                var front = zBottom + k * run;
+                var floor = bottom - 0.5f;
+                StairBlocks.Add((new Vector3((x0 + x1) * 0.5f, (top + floor) * 0.5f, (front + back) * 0.5f),
+                    new Vector3(x1 - x0, top - floor, back - front)));
             }
         }
 
         void BuildTrails()
         {
+            // Для каждой вершины — ближайшая тропа (по расстоянию до края), её высота и полуширина.
+            var count = Field.VertexColumns * Field.VertexRows;
+            var distance = new float[count];
+            var target = new float[count];
+            var halfWidth = new float[count];
+            for (var k = 0; k < count; k++)
+                distance[k] = float.MaxValue;
+
             foreach (var trail in Trails)
             {
                 var samples = SampleTrail(trail);
-                PaintTrail(trail, samples);
+                MarkTrailCells(trail, samples);
+                CollectTrailVertices(trail, samples, distance, target, halfWidth);
+            }
+
+            // Тропа врезается в склон: полотно на высоте профиля тропы (чуть вогнутое — колея), обочины плавно
+            // переходят в природный рельеф. Чем больше перепад, тем шире откос — выемки и насыпи, а не стенки.
+            for (var j = 0; j < Field.VertexRows; j++)
+            for (var i = 0; i < Field.VertexColumns; i++)
+            {
+                var k = VertexIndex(i, j);
+                if (distance[k] == float.MaxValue || _lockedVertex[k])
+                    continue;
+                var h = Field.GetVertexHeight(i, j);
+                if (h < 0f)
+                    continue;
+                var d = distance[k];
+                var half = halfWidth[k];
+                var shoulder = 0.9f + Mathf.Min(Mathf.Abs(h - target[k]), 2f) * 0.5f;
+                if (d > half + shoulder)
+                    continue;
+                var w = d <= half ? 1f : 1f - Smooth(half, half + shoulder, d);
+                var bed = target[k] - 0.06f * (1f - Mathf.Clamp01(d / half));
+                Field.SetVertexHeight(i, j, Mathf.Lerp(h, bed, w));
+                if (d <= half + 0.3f)
+                    _trailVertex[k] = true;
+            }
+        }
+
+        static float TrailHalfWidth(Trail trail, Vector2 p) => trail.Width * 0.5f + (Noise(p.x, p.y, 3f, 37) - 0.5f) * 1f;
+
+        (Vector2 min, Vector2 max) TrailBounds(Trail trail, float reach)
+        {
+            var min = trail.Points[0];
+            var max = trail.Points[0];
+            foreach (var p in trail.Points)
+            {
+                min = Vector2.Min(min, p);
+                max = Vector2.Max(max, p);
+            }
+            var pad = Vector2.one * (trail.Width + reach + 4f); // запас на петляние кривой
+            return (min - pad, max + pad);
+        }
+
+        void CollectTrailVertices(Trail trail, List<(Vector2 point, float height)> samples, float[] distance, float[] target, float[] halfWidth)
+        {
+            var (min, max) = TrailBounds(trail, 4f);
+            Field.NearestVertex(min.x, min.y, out var i0, out var j0);
+            Field.NearestVertex(max.x, max.y, out var i1, out var j1);
+            for (var j = j0; j <= j1; j++)
+            for (var i = i0; i <= i1; i++)
+            {
+                var p = Field.VertexPosition(i, j);
+                var nearest = NearestSample(samples, p, out var d);
+                var half = TrailHalfWidth(trail, p);
+                if (d > half + 2f)
+                    continue;
+                var k = VertexIndex(i, j);
+                if (d - half >= distance[k] - halfWidth[k])
+                    continue;
+                distance[k] = d;
+                target[k] = samples[nearest].height;
+                halfWidth[k] = half;
+            }
+        }
+
+        void MarkTrailCells(Trail trail, List<(Vector2 point, float height)> samples)
+        {
+            var (min, max) = TrailBounds(trail, 0f);
+            for (var z = min.y; z <= max.y; z += TerrainField.CellSize)
+            for (var x = min.x; x <= max.x; x += TerrainField.CellSize)
+            {
+                if (!Field.TryCell(x, z, out var c, out var r))
+                    continue;
+                var center = Field.CellCenter(c, r);
+                NearestSample(samples, center, out var distance);
+                if (distance > TrailHalfWidth(trail, center))
+                    continue;
+                var i = CellIndex(c, r);
+                _walkable[i] = true;
+                _trail[i] = true;
             }
         }
 
@@ -707,44 +933,6 @@ namespace ChroniclesOfRebirth.Editor.Locations
             return result;
         }
 
-        void PaintTrail(Trail trail, List<(Vector2 point, float height)> samples)
-        {
-            var min = trail.Points[0];
-            var max = trail.Points[0];
-            foreach (var p in trail.Points)
-            {
-                min = Vector2.Min(min, p);
-                max = Vector2.Max(max, p);
-            }
-
-            var reach = trail.Width + 4f; // запас на петляние кривой
-            for (var z = min.y - reach; z <= max.y + reach; z += TerrainField.CellSize)
-            for (var x = min.x - reach; x <= max.x + reach; x += TerrainField.CellSize)
-            {
-                if (!Field.TryCell(x, z, out var c, out var r))
-                    continue;
-                var center = Field.CellCenter(c, r);
-                var nearest = NearestSample(samples, center, out var distance);
-                var half = trail.Width * 0.5f + (Noise(center.x, center.y, 3f, 37) - 0.5f) * 1f;
-                if (distance > half)
-                    continue;
-
-                var i = CellIndex(c, r);
-                _walkable[i] = true;
-                _trail[i] = true;
-                if (_locked[i] || IsWater(c, r))
-                    continue;
-
-                if (InFlattenedGlade(center.x, center.y))
-                {
-                    Field.SetGround(c, r, GroundType.Dirt);
-                    continue;
-                }
-
-                Field.SetSmooth(c, r, samples[nearest].height, GroundType.Dirt);
-            }
-        }
-
         static int NearestSample(List<(Vector2 point, float height)> samples, Vector2 p, out float distance)
         {
             var best = 0;
@@ -761,23 +949,79 @@ namespace ChroniclesOfRebirth.Editor.Locations
             return best;
         }
 
-        bool InFlattenedGlade(float x, float z)
-        {
-            foreach (var glade in Glades)
-                if (glade.Flatten && GladeDistance(glade, x, z) < 0.85f)
-                    return true;
-            return false;
-        }
-
-        /// <summary>Брод: глубокий участок ручья, перейти его можно будет позже.</summary>
+        /// <summary>Брод: глубокий омут в русле ручья, перейти его можно будет позже.</summary>
         void BuildFord()
         {
             var ford = System.Array.Find(Glades, g => g.Id == "stepstone_ford");
-            ForCellsAround(ford.Center, 3f, (c, r, p) =>
+            ForVerticesAround(ford.Center, 3.5f, (i, j, p) =>
             {
-                if (Field.GetGround(c, r) == GroundType.ShallowBed && Vector2.Distance(p, ford.Center) < 2.6f)
-                    Field.SetLevel(c, r, DeepLevel, GroundType.DeepBed);
+                if (StreamDistance(p.x, p.y) > 1.6f || Vector2.Distance(p, ford.Center) > 2.3f)
+                    return;
+                Field.SetVertexHeight(i, j, -1.25f);
+                _lockedVertex[VertexIndex(i, j)] = true;
             });
+        }
+
+        /// <summary>Тип земли каждой клетки — по высоте, крутизне и зоне; клетки плато и лестницы заданы заранее.</summary>
+        void ClassifyGround()
+        {
+            for (var r = 0; r < Field.Rows; r++)
+            for (var c = 0; c < Field.Columns; c++)
+            {
+                var i = CellIndex(c, r);
+                if (_locked[i])
+                    continue;
+                var p = Field.CellCenter(c, r);
+                Field.SetGround(c, r, GroundAt(p.x, p.y, _trail[i]));
+            }
+        }
+
+        GroundType GroundAt(float x, float z, bool trail)
+        {
+            var h = Field.SampleHeight(x, z);
+            if (h < DeepWaterHeight)
+                return GroundType.DeepBed;
+            if (h < WaterHeight + 0.02f)
+                return GroundType.ShallowBed;
+            if (trail)
+                return GroundType.Dirt;
+
+            // Отмели и пляжи: низкая земля у реки и ручья.
+            if (h < 0.32f && (Mathf.Abs(z - RiverCenter(x)) < 8f || StreamDistance(x, z) < 3.4f))
+                return GroundType.Pebbles;
+
+            var slope = Field.SampleSlope(x, z);
+            // Скальные бока холма святилища, стенки оврага, любые отвесные места — камень.
+            // Подмытые берега и откосы троп остаются земляными: их рисует шейдер текстурой обрыва.
+            var e = PlateauDistance(x, z);
+            if (e > 1f && e < 1.55f && slope > 26f)
+                return GroundType.Rock;
+            if (RavineDistance(x, z) < 6f && slope > 34f && Noise(x, z, 3f, 149) > 0.3f)
+                return GroundType.Rock;
+            if (slope > 52f)
+                return GroundType.Rock;
+
+            foreach (var glade in Glades)
+                if (GladeDistance(glade, x, z) < 1f)
+                    return glade.Ground;
+
+            var field = FieldStart(x, z);
+            if (z > field)
+                return GroundType.Grass;
+
+            var m = MountainBlend(z);
+            if (m > 0f)
+                return MountainGround(x, z, h, slope, m);
+
+            if (InWoodland(x, z))
+                return Noise(x, z, 5f, 157) > 0.5f ? GroundType.GrassLeaves : GroundType.ForestFloor;
+
+            var edge = ForestEdge(x, z);
+            if (z > edge + 2f)
+                return Noise(x, z, 7f, 159) > 0.62f ? GroundType.GrassLeaves : GroundType.ForestFloor;
+            if (z > edge - 3f)
+                return Noise(x, z, 4f, 161) > 0.45f ? GroundType.GrassLeaves : GroundType.Grass;
+            return GroundType.Grass;
         }
 
         void BuildWalkable()
@@ -807,7 +1051,8 @@ namespace ChroniclesOfRebirth.Editor.Locations
                 foreach (var glade in Glades)
                     inGlade |= GladeDistance(glade, p.x, p.y) < 1f;
 
-                _walkable[i] = southZone || streamValley || field || InMountainZone(p.x, p.y) || inGlade || InWoodland(p.x, p.y);
+                _walkable[i] = (southZone || streamValley || field || InMountainZone(p.x, p.y) || inGlade || InWoodland(p.x, p.y)) &&
+                               Field.SampleSlope(p.x, p.y) <= WalkableSlope;
             }
         }
 
@@ -886,6 +1131,8 @@ namespace ChroniclesOfRebirth.Editor.Locations
                     continue;
                 if (Vector2.Distance(p, GiantOakPosition) < 9f)
                     continue; // под кроной Дуба-Прадеда
+                if (Field.SampleSlope(p.x, p.y) > 35f)
+                    continue; // на обрывах и крутых откосах деревья не держатся
 
                 var inPlay = InPlayArea(p.x, p.y);
                 var edge = ForestEdge(p.x, p.y);
@@ -944,7 +1191,7 @@ namespace ChroniclesOfRebirth.Editor.Locations
                 if (Field.GetGround(c, r) is GroundType.DeepBed or GroundType.ShallowBed or GroundType.Pebbles or GroundType.Flagstone or GroundType.Dirt)
                     continue;
                 if (p.y < ForestEdge(p.x, p.y) + 1f || p.y > FieldStart(p.x, p.y) || InMountainZone(p.x, p.y) ||
-                    NearWalkable(p, 1.4f) || Vector2.Distance(p, GiantOakPosition) < 9f)
+                    NearWalkable(p, 1.4f) || Vector2.Distance(p, GiantOakPosition) < 9f || Field.SampleSlope(p.x, p.y) > 35f)
                     continue;
                 if (PixelNoise.Hash01(j, 5, 47) > ConiferShare(p.y, 0f) - 0.1f)
                     continue;
@@ -1023,6 +1270,8 @@ namespace ChroniclesOfRebirth.Editor.Locations
                 // На лугу у берега, в горах и в поле кусты не нужны — там открытое пространство.
                 if (p.y < ForestEdge(p.x, p.y) - 2f || InMountainZone(p.x, p.y) || p.y > FieldStart(p.x, p.y))
                     continue;
+                if (Field.SampleSlope(p.x, p.y) > 40f)
+                    continue;
                 Bushes.Add(new Vector3(p.x, Field.GetHeight(c, r), p.y));
             }
         }
@@ -1080,16 +1329,73 @@ namespace ChroniclesOfRebirth.Editor.Locations
                     continue;
                 AddRock(x, z, 0.5f + PixelNoise.Hash01(i, 3, 127) * 1.3f);
             }
+            // Скальные выступы на боках холма святилища и обломки у его подножия.
+            for (var i = 0; i < 70; i++)
+            {
+                var a = PixelNoise.Hash01(i, 0, 163) * Mathf.PI * 2f;
+                var e = 1.12f + PixelNoise.Hash01(i, 1, 163) * 0.4f;
+                var x = PortalCenter.x + Mathf.Cos(a) * PlateauRadius.x * e;
+                var z = PortalCenter.y + Mathf.Sin(a) * PlateauRadius.y * e;
+                if (Mathf.Abs(x - 41f) < 3.2f && z < PortalCenter.y || NearTrail(new Vector2(x, z), 1.6f))
+                    continue; // лестница и тропа свободны
+                AddRock(x, z, 0.45f + PixelNoise.Hash01(i, 2, 163) * 0.9f);
+            }
+
+            // Стенки Ленточного оврага: валуны у подножия и выступы на склонах.
+            for (var i = 0; i < 90; i++)
+            {
+                var x = 52f + PixelNoise.Hash01(i, 0, 167) * 24f;
+                var z = 55f + PixelNoise.Hash01(i, 1, 167) * 21f;
+                var d = RavineDistance(x, z);
+                if (d < 2f || d > 5.5f || NearTrail(new Vector2(x, z), 1.4f))
+                    continue;
+                AddRock(x, z, 0.4f + PixelNoise.Hash01(i, 2, 167) * 0.8f);
+            }
         }
 
         void AddRock(float x, float z, float scale)
         {
             if (!Field.TryCell(x, z, out _, out _))
                 return;
-            // Центр чуть ниже земли: плоское основание камня уходит в грунт, камень не «стоит» на земле.
-            Rocks.Add(new Vector4(x, Field.SampleHeight(x, z) - scale * 0.03f, z, scale));
+            // Камень врастает в землю, на склоне — глубже: плоское основание не висит над откосом.
+            var slope01 = Mathf.Clamp01(Field.SampleSlope(x, z) / 60f);
+            Rocks.Add(new Vector4(x, Field.SampleHeight(x, z) - scale * (0.05f + slope01 * 0.3f), z, scale));
         }
 
+        /// <summary>Галька у воды, камешки на тропах и в лесной подстилке — объёмные, отбрасывают тени.</summary>
+        void PlacePebbles()
+        {
+            var i = 0;
+            for (var z = Field.MinZ + 0.3f; z < Field.MaxZ; z += 0.6f)
+            for (var x = Field.MinX + 0.3f; x < Field.MaxX; x += 0.6f)
+            {
+                i++;
+                var px = x + (PixelNoise.Hash01(i, 0, 171) - 0.5f) * 0.55f;
+                var pz = z + (PixelNoise.Hash01(i, 1, 171) - 0.5f) * 0.55f;
+                if (!Field.TryCell(px, pz, out var c, out var r))
+                    continue;
+                var roll = PixelNoise.Hash01(i, 2, 171);
+                var size = PixelNoise.Hash01(i, 3, 171);
+                var (chance, min, max) = Field.GetGround(c, r) switch
+                {
+                    GroundType.Pebbles => (0.4f, 0.08f, 0.24f),
+                    GroundType.ShallowBed => (0.22f, 0.1f, 0.3f),
+                    GroundType.Dirt => (0.05f, 0.05f, 0.13f),
+                    GroundType.ForestFloor => (0.012f, 0.08f, 0.18f),
+                    GroundType.Rock => (0.03f, 0.1f, 0.3f),
+                    _ => (0f, 0f, 0f),
+                };
+                if (roll >= chance)
+                    continue;
+                var scale = Mathf.Lerp(min, max, size * size);
+                Pebbles.Add(new Vector4(px, Field.SampleHeight(px, pz) - scale * 0.15f, pz, scale));
+            }
+        }
+
+        /// <summary>
+        /// Растения поверх травяного покрова (сам покров — слои травы в шейдере): высокие сухие стебли, кустики,
+        /// цветы, папоротники. Каждое — крест из 3D-карточек, как листва деревьев.
+        /// </summary>
         void PlaceGroundSprites()
         {
             for (var z = Field.MinZ + 0.5f; z < Field.MaxZ; z += 1f)
@@ -1107,28 +1413,32 @@ namespace ChroniclesOfRebirth.Editor.Locations
                     var roll = PixelNoise.Hash01(ix * 7 + k, iz, 67);
                     var px = x - 0.35f + PixelNoise.Hash01(ix, iz * 3 + k, 71) * 0.7f;
                     var pz = z - 0.35f + PixelNoise.Hash01(ix * 5 + k, iz, 73) * 0.7f;
+                    if (Field.SampleSlope(px, pz) > 38f)
+                        continue;
                     var position = new Vector3(px, Field.SampleHeight(px, pz), pz);
 
                     switch (ground)
                     {
                         case GroundType.Grass:
                         case GroundType.GrassLeaves:
-                            // Густой сплошной покров; цветы — редкая россыпь, а не букеты.
-                            if (nearRuins && roll < 0.1f)
+                            // Над сплошным покровом — редкие высокие стебли и кустики; цветы — россыпью, а не букетами.
+                            if (nearRuins && roll < 0.08f)
                                 AddSprite(position, FoliageSprites.Flowers);
-                            else if (roll < 0.72f)
-                                AddSprite(position, PixelNoise.Hash01(ix, iz, 79 + k) < 0.3f ? FoliageSprites.TuftDry : FoliageSprites.TuftGreen);
-                            else if (roll > 0.985f)
+                            else if (roll < 0.07f)
+                                AddSprite(position, FoliageSprites.TuftDry);
+                            else if (roll < 0.11f)
+                                AddSprite(position, FoliageSprites.TuftGreen);
+                            else if (roll > 0.988f)
                                 AddSprite(position, FoliageSprites.Flowers);
                             break;
                         case GroundType.ForestFloor:
-                            if (roll < 0.3f)
+                            if (roll < 0.2f)
                                 AddSprite(position, FoliageSprites.Fern);
-                            else if (roll < 0.5f)
+                            else if (roll < 0.26f)
                                 AddSprite(position, PixelNoise.Hash01(ix, iz, 83 + k) < 0.5f ? FoliageSprites.TuftDry : FoliageSprites.TuftGreen);
                             break;
                         case GroundType.Flagstone:
-                            if (Field.GetHeight(c, r) >= PlateauLevel * TerrainField.LevelHeight && roll < 0.08f &&
+                            if (Field.GetHeight(c, r) >= PlateauTop - 0.05f && roll < 0.06f &&
                                 Vector2.Distance(new Vector2(px, pz), PortalCenter) > 5f)
                                 AddSprite(position, FoliageSprites.Flowers);
                             break;
@@ -1219,6 +1529,15 @@ namespace ChroniclesOfRebirth.Editor.Locations
                 yield return n;
             foreach (var g in Glades)
                 yield return new NamedPlace { Key = "loc." + g.Id, Ru = g.Ru, En = g.En };
+        }
+
+        void ForVerticesAround(Vector2 center, float radius, System.Action<int, int, Vector2> action)
+        {
+            Field.NearestVertex(center.x - radius, center.y - radius, out var i0, out var j0);
+            Field.NearestVertex(center.x + radius, center.y + radius, out var i1, out var j1);
+            for (var j = j0; j <= j1; j++)
+            for (var i = i0; i <= i1; i++)
+                action(i, j, Field.VertexPosition(i, j));
         }
 
         void ForCellsAround(Vector2 center, float radius, System.Action<int, int, Vector2> action)

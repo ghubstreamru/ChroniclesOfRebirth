@@ -6,7 +6,7 @@ using UnityEngine;
 namespace ChroniclesOfRebirth.Editor.Locations
 {
     /// <summary>
-    /// Карта локации сверху для обсуждения планировки: рельеф, вода, тропы, граница проходимой зоны,
+    /// Карта локации сверху для обсуждения планировки: рельеф (отмывка и горизонтали через 0,5 юнита), вода, тропы, граница проходимой зоны,
     /// кроны деревьев, пронумерованные поляны. 1 пиксель = 1 клетка рельефа (0,25 юнита), север сверху.
     /// </summary>
     public static class SilverrunValeMap
@@ -31,12 +31,15 @@ namespace ChroniclesOfRebirth.Editor.Locations
             for (var c = 0; c < w; c++)
             {
                 var color = (Color)GroundColor(field.GetGround(c, r));
-                var height = field.GetHeight(c, r);
-                color *= Mathf.Clamp(0.78f + height * 0.07f, 0.55f, 1.15f);
+                var p = field.CellCenter(c, r);
 
-                // Обрывы — тёмная линия, чтобы читались уровни.
-                if (HeightStep(field, c, r) >= TerrainField.LevelHeight * 1.5f)
-                    color *= 0.55f;
+                // Отмывка: склоны к северо-западу светлее, от него — темнее; обрывы читаются сразу.
+                var normal = field.SampleNormal(p.x, p.y);
+                color *= 0.45f + 0.75f * Mathf.Max(0f, Vector3.Dot(normal, HillshadeLight));
+
+                // Горизонтали через 0,5 юнита.
+                if (ContourCrossed(field, c, r))
+                    color *= 0.75f;
                 color.a = 1f;
                 pixels[r * w + c] = color;
             }
@@ -100,13 +103,14 @@ namespace ChroniclesOfRebirth.Editor.Locations
             _ => new Color32(255, 0, 255, 255),
         };
 
-        static float HeightStep(TerrainField field, int c, int r)
+        static readonly Vector3 HillshadeLight = new Vector3(-0.5f, 0.75f, 0.45f).normalized;
+        const float ContourStep = 0.5f;
+
+        static bool ContourCrossed(TerrainField field, int c, int r)
         {
-            var h = field.GetHeight(c, r);
-            var step = 0f;
-            if (field.InBounds(c + 1, r)) step = Mathf.Max(step, Mathf.Abs(field.GetHeight(c + 1, r) - h));
-            if (field.InBounds(c, r + 1)) step = Mathf.Max(step, Mathf.Abs(field.GetHeight(c, r + 1) - h));
-            return step;
+            var band = Mathf.FloorToInt(field.GetHeight(c, r) / ContourStep);
+            return (field.InBounds(c + 1, r) && Mathf.FloorToInt(field.GetHeight(c + 1, r) / ContourStep) != band) ||
+                   (field.InBounds(c, r + 1) && Mathf.FloorToInt(field.GetHeight(c, r + 1) / ContourStep) != band);
         }
 
         static void Blend(Color32[] pixels, TerrainField field, int c, int r, Color color, float alpha)

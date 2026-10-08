@@ -33,6 +33,11 @@ namespace ChroniclesOfRebirth.Editor.Locations
         const string BarkShader = "ChroniclesOfRebirth/PixelBark";
         const string WaterShader = "ChroniclesOfRebirth/PixelWater";
         const string TerrainBlendShader = "ChroniclesOfRebirth/TerrainBlend";
+        const string GrassShader = "ChroniclesOfRebirth/PixelGrass";
+        /// <summary>Слоёв травяного покрова: по слою на пиксель высоты травы — травинки читаются объёмными.</summary>
+        const int GrassShells = 12;
+        /// <summary>Сторона участка рельефа: каждый участок — свой меш, камера отсекает невидимые целиком.</summary>
+        const int TerrainChunkSize = 32;
         const string LocationsTable = "Locations";
         /// <summary>Плитка текстур окружения: 128 px на 4 юнита = 32 px/юнит.</summary>
         const int TileSize = EnvironmentTextures.TileSize;
@@ -57,11 +62,13 @@ namespace ChroniclesOfRebirth.Editor.Locations
 
             var environment = new GameObject("Environment");
             BuildTerrain(layout, materials, environment.transform);
+            BuildGrass(layout, materials, environment.transform);
             BuildWater(layout, materials, environment.transform);
             BuildTrees(layout, materials, environment.transform);
             BuildBushes(layout, materials, environment.transform);
             BuildRocks(layout, materials, environment.transform);
-            BuildRuins(materials, environment.transform);
+            BuildPebbles(layout, materials, environment.transform);
+            BuildRuins(layout, materials, environment.transform);
             BuildGroundFoliage(layout, materials, environment.transform);
             BuildBlockers(layout, environment.transform);
             BuildMarkers(layout);
@@ -85,13 +92,16 @@ namespace ChroniclesOfRebirth.Editor.Locations
 
         sealed class MaterialSet
         {
-            public Material[] Terrain;
+            public Material Terrain;
+            /// <summary>Слои травяного покрова снизу вверх.</summary>
+            public Material[] Grass;
+            /// <summary>Растения поверх покрова: стебли, цветы, папоротники — 3D-карточки.</summary>
+            public Material Plants;
             public Material Water;
             public Material Bark;
             public Material Rock;
             public Material StoneWall;
             public Material Portal;
-            public Material GroundFoliage;
             public Material[] Bush;
             public Material Hero;
             /// <summary>Для каждого вида кроны — пара: непрозрачный материал и материал бледнеющих крон.</summary>
@@ -102,11 +112,10 @@ namespace ChroniclesOfRebirth.Editor.Locations
         {
             var set = new MaterialSet();
 
-            set.Terrain = new Material[TerrainField.SubmeshCount];
-
-            // Верхние грани всех типов земли рисует один материал смешивания: тип — из карты клеток,
-            // границы — неровные (TerrainBlend.shader). Индекс слоя массива = GroundType.
-            var layers = new Texture2D[(int)GroundType.Snow + 1];
+            // Весь рельеф рисует один материал смешивания: тип земли — из карты клеток, границы — неровные,
+            // крутые склоны — текстура обрыва сбоку (TerrainBlend.shader). Индекс слоя массива = GroundType,
+            // за ними — земляной и скальный обрыв.
+            var layers = new Texture2D[(int)GroundType.Snow + 3];
             layers[(int)GroundType.DeepBed] = EnvironmentTextures.Riverbed(TileSize, 11);
             layers[(int)GroundType.ShallowBed] = EnvironmentTextures.Pebbles(TileSize, 12);
             layers[(int)GroundType.Pebbles] = EnvironmentTextures.Gravel(TileSize, 13);
@@ -117,18 +126,35 @@ namespace ChroniclesOfRebirth.Editor.Locations
             layers[(int)GroundType.Flagstone] = EnvironmentTextures.Flagstones(TileSize, 18);
             layers[(int)GroundType.Rock] = EnvironmentTextures.Rock(TileSize, 24);
             layers[(int)GroundType.Snow] = EnvironmentTextures.Snow(TileSize, 25);
+            layers[(int)GroundType.Snow + 1] = EnvironmentTextures.CliffEarth(TileSize, 19);
+            layers[(int)GroundType.Snow + 2] = EnvironmentTextures.CliffRock(TileSize, 26);
             var blend = new Material(Shader.Find(TerrainBlendShader)) { name = "Ground_Blend" };
             blend.SetTexture("_GroundTextures", SaveTextureArray(layers, "GroundTextures"));
             blend.SetFloat("_UnitsPerTile", MeshBuilder.UvUnitsPerTile);
             blend.SetFloat("_TexelsPerUnit", EnvironmentTextures.TexelsPerUnit);
             blend.enableInstancing = true;
-            SaveMaterial(blend);
-            for (var i = 0; i < layers.Length; i++)
-                set.Terrain[i] = blend;
-            set.Terrain[TerrainField.SideEarth] = LitFrom("Side_Earth", EnvironmentTextures.CliffEarth(TileSize, 19));
-            set.Terrain[TerrainField.SideRock] = LitFrom("Side_Rock", EnvironmentTextures.CliffRock(TileSize, 26));
+            set.Terrain = SaveMaterial(blend);
             set.StoneWall = LitFrom("Stone_Wall", EnvironmentTextures.StoneWall(TileSize, 20));
-            set.Terrain[TerrainField.SideStone] = set.StoneWall;
+
+            // Травяной покров: материал на каждый слой (отличаются только номером слоя), палитры — общие.
+            var grassRamp = SaveTexture(AutumnPalette.Grass.ToTexture("Grass_Ramp"));
+            var dryRamp = SaveTexture(AutumnPalette.DryGrass.ToTexture("DryGrass_Ramp"));
+            var mossRamp = SaveTexture(AutumnPalette.Moss.ToTexture("Moss_Ramp"));
+            var leafRamp = SaveTexture(AutumnPalette.FallenLeaves.ToTexture("FallenLeaves_Ramp"));
+            set.Grass = new Material[GrassShells];
+            for (var k = 0; k < GrassShells; k++)
+            {
+                var shell = new Material(Shader.Find(GrassShader)) { name = $"Grass_Shell_{k + 1:00}" };
+                shell.SetTexture("_GrassRamp", grassRamp);
+                shell.SetTexture("_DryRamp", dryRamp);
+                shell.SetTexture("_MossRamp", mossRamp);
+                shell.SetTexture("_LeafRamp", leafRamp);
+                shell.SetFloat("_TexelsPerUnit", EnvironmentTextures.TexelsPerUnit);
+                shell.SetFloat("_Layer", (k + 1f) / GrassShells);
+                shell.enableInstancing = true;
+                set.Grass[k] = SaveMaterial(shell);
+            }
+
             // Кора считается в шейдере по 3D-позиции — без развёртки и швов на стволах и стыках ветвей.
             set.Bark = new Material(Shader.Find(BarkShader)) { name = "Bark", enableInstancing = true };
             set.Bark.SetTexture("_BarkRamp", SaveTexture(AutumnPalette.Bark.ToTexture("Bark_Palette")));
@@ -167,8 +193,17 @@ namespace ChroniclesOfRebirth.Editor.Locations
                 CanopyMaterial("Conifer", FoliageSprites.ConiferTierAtlas(AutumnPalette.LeavesConifer, 34, "Leaves_Conifer"));
             set.Bush = CanopyMaterial("Bush", AutumnPalette.LeavesBush, 35);
 
-            var ground = SaveTexture(FoliageSprites.GroundAtlas(41));
-            set.GroundFoliage = SaveMaterial(Sprite("GroundFoliage", ground, 1f, 0.35f, 0.5f, 0.06f, 0.3f));
+            // Растения — объёмные карточки, как листва крон: освещаются, отбрасывают тени, качаются от корня.
+            var plants = new Material(Shader.Find(FoliageShader)) { name = "Plants" };
+            plants.SetTexture("_BaseMap", SaveTexture(FoliageSprites.GroundAtlas(41)));
+            plants.SetFloat("_CrownFade", 0f);
+            plants.SetFloat("_FadeMode", 0f);
+            plants.SetFloat("_WindStrength", 0.08f);
+            plants.SetFloat("_Wrap", 0.4f);
+            plants.SetFloat("_ShadowOffset", 0.15f);
+            plants.SetShaderPassEnabled("SRPDefaultUnlit", false);
+            plants.enableInstancing = true;
+            set.Plants = SaveMaterial(plants);
 
             var hero = SaveTexture(HeroSpriteSheet.Generate());
             set.Hero = Sprite("Hero", hero, 0.7f, 0.55f, 0.7f, 0f, 0.2f);
@@ -289,19 +324,53 @@ namespace ChroniclesOfRebirth.Editor.Locations
 
         static void BuildTerrain(SilverrunValeLayout layout, MaterialSet materials, Transform parent)
         {
-            // Карта типов земли для материала смешивания верхних граней.
+            // Карта типов земли — общая для материала земли и слоёв травы: границы у них совпадают.
             var field = layout.Field;
-            var blend = materials.Terrain[(int)GroundType.Grass];
-            blend.SetTexture("_GroundMap", SaveTexture(field.BuildGroundMap()));
-            blend.SetVector("_MapRect", new Vector4(field.MinX, field.MinZ, field.MaxX - field.MinX, field.MaxZ - field.MinZ));
-            blend.SetVector("_MapTexel", new Vector4(1f / field.Columns, 1f / field.Rows, field.Columns, field.Rows));
-            EditorUtility.SetDirty(blend);
+            var groundMap = SaveTexture(field.BuildGroundMap());
+            var mapRect = new Vector4(field.MinX, field.MinZ, field.MaxX - field.MinX, field.MaxZ - field.MinZ);
+            var mapTexel = new Vector4(1f / field.Columns, 1f / field.Rows, field.Columns, field.Rows);
+            foreach (var material in new List<Material>(materials.Grass) { materials.Terrain })
+            {
+                material.SetTexture("_GroundMap", groundMap);
+                material.SetVector("_MapRect", mapRect);
+                material.SetVector("_MapTexel", mapTexel);
+                EditorUtility.SetDirty(material);
+            }
 
-            var mesh = SaveMesh(layout.Field.BuildMesh("Terrain"));
-            var go = CreateMeshObject("Terrain", parent, mesh, materials.Terrain);
-            go.AddComponent<MeshCollider>().sharedMesh = mesh;
+            var root = new GameObject("Terrain").transform;
+            root.SetParent(parent, false);
             // Отдельный слой: по нему камера проверяет, не закрыл ли склон героя.
-            go.layer = EnsureLayer(TerrainLayer);
+            var layer = EnsureLayer(TerrainLayer);
+            foreach (var chunk in field.Chunks(TerrainChunkSize))
+            {
+                var name = $"Terrain_{chunk.x / 2}_{chunk.y / 2}";
+                var mesh = SaveMesh(field.BuildSurface(name, chunk, skirt: true));
+                var go = CreateMeshObject(name, root, mesh, materials.Terrain);
+                go.AddComponent<MeshCollider>().sharedMesh = mesh;
+                go.layer = layer;
+            }
+        }
+
+        /// <summary>
+        /// Травяной покров: по участкам рельефа — поверхность там, где растёт трава или мох, рисуется всеми слоями
+        /// (у меша один сабмеш, лишние материалы Unity рисует по нему же — слой за слоем). Тени покров не отбрасывает:
+        /// их дают земля, камни, растения и кроны.
+        /// </summary>
+        static void BuildGrass(SilverrunValeLayout layout, MaterialSet materials, Transform parent)
+        {
+            var root = new GameObject("Grass").transform;
+            root.SetParent(parent, false);
+            var field = layout.Field;
+            foreach (var chunk in field.Chunks(TerrainChunkSize))
+            {
+                var name = $"Grass_{chunk.x / 2}_{chunk.y / 2}";
+                var mesh = field.BuildSurface(name, chunk, layout.QuadHasCover, layout.GrassVertexColor);
+                if (mesh == null)
+                    continue;
+                var go = CreateMeshObject(name, root, SaveMesh(mesh), materials.Grass, false);
+                var renderer = go.GetComponent<MeshRenderer>();
+                renderer.shadowCastingMode = ShadowCastingMode.Off;
+            }
         }
 
         static void BuildWater(SilverrunValeLayout layout, MaterialSet materials, Transform parent)
@@ -490,6 +559,26 @@ namespace ChroniclesOfRebirth.Editor.Locations
             go.AddComponent<MeshCollider>().sharedMesh = mesh;
         }
 
+        /// <summary>Галька и камешки: объёмные, но грубее валунов (икосаэдр без подразделения или с одним), без коллизии.</summary>
+        static void BuildPebbles(SilverrunValeLayout layout, MaterialSet materials, Transform parent)
+        {
+            var builder = new MeshBuilder();
+            var i = 0;
+            foreach (var pebble in layout.Pebbles)
+            {
+                var scale = pebble.w;
+                var shape = new Vector3(
+                    scale * (0.9f + PixelNoise.Hash01(i, 0, 175) * 0.5f),
+                    scale * (0.4f + PixelNoise.Hash01(i, 1, 175) * 0.3f),
+                    scale * (0.8f + PixelNoise.Hash01(i, 2, 175) * 0.4f));
+                builder.AddRock(0, new Vector3(pebble.x, pebble.y, pebble.z), shape, PixelNoise.Hash01(i, 3, 175) * 360f, 7000 + i,
+                    White, scale > 0.2f ? 1 : 0);
+                i++;
+            }
+
+            CreateMeshObject("Pebbles", parent, SaveMesh(builder.Build("Pebbles")), materials.Rock);
+        }
+
         static bool InPlateauEllipse(Vector3 p, float scale)
         {
             var dx = (p.x - SilverrunValeLayout.PortalCenter.x) / (SilverrunValeLayout.PlateauRadius.x * scale);
@@ -497,13 +586,17 @@ namespace ChroniclesOfRebirth.Editor.Locations
             return dx * dx + dz * dz <= 1f;
         }
 
-        static void BuildRuins(MaterialSet materials, Transform parent)
+        static void BuildRuins(SilverrunValeLayout layout, MaterialSet materials, Transform parent)
         {
             var root = new GameObject("Dawnstone_Shrine").transform;
             root.SetParent(parent, false);
 
             var stone = new MeshBuilder();
-            var floor = SilverrunValeLayout.PlateauLevel * TerrainField.LevelHeight;
+            var floor = SilverrunValeLayout.PlateauTop;
+
+            // Южная лестница: блоки ступеней на пандусе рельефа.
+            foreach (var (blockCenter, blockSize) in layout.StairBlocks)
+                stone.AddBox(0, Matrix4x4.Translate(blockCenter), blockSize, White);
             var center = new Vector3(SilverrunValeLayout.PortalCenter.x, floor, SilverrunValeLayout.PortalCenter.y);
 
             // Кольцо колонн: 1, 5 и 6 целы (5–6 с перемычкой — «ворота»), 3 упала, остальные обломаны.
@@ -587,11 +680,14 @@ namespace ChroniclesOfRebirth.Editor.Locations
 
         static void BuildGroundFoliage(SilverrunValeLayout layout, MaterialSet materials, Transform parent)
         {
-            CreateMeshObject("Ground_Foliage", parent, SaveMesh(BuildSpriteMesh("Ground_Foliage", layout.GroundSprites)), materials.GroundFoliage)
-                .GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
+            CreateMeshObject("Plants", parent, SaveMesh(BuildPlantMesh("Plants", layout.GroundSprites)), materials.Plants, false);
         }
 
-        static Mesh BuildSpriteMesh(string name, List<SilverrunValeLayout.GroundSprite> sprites)
+        /// <summary>
+        /// Растение — «звёздочка» из трёх вертикальных карточек под 60°: с любой стороны у него есть объём, оно
+        /// освещается и отбрасывает тень. Нормаль почти вверх — растение освещается как земля вокруг.
+        /// </summary>
+        static Mesh BuildPlantMesh(string name, List<SilverrunValeLayout.GroundSprite> sprites)
         {
             var builder = new MeshBuilder();
             var w = 1f / FoliageSprites.GroundVariants;
@@ -599,13 +695,22 @@ namespace ChroniclesOfRebirth.Editor.Locations
             var i = 0;
             foreach (var sprite in sprites)
             {
-                // Разные размер и оттенок у каждого пучка: покров неровный, без одинаковых копий.
+                // Разные размер, поворот и оттенок у каждого растения: без одинаковых копий.
                 var scale = 0.7f + PixelNoise.Hash01(i, 1, 107) * 0.55f;
                 var light = 0.82f + PixelNoise.Hash01(i, 0, 107) * 0.18f;
                 var warm = (PixelNoise.Hash01(i, 2, 107) - 0.5f) * 0.12f;
+                var yaw = PixelNoise.Hash01(i, 3, 107) * Mathf.PI;
+                var color = new Color(light * (1f + warm), light, light * (1f - warm), 1f);
+                var rect = new Rect(sprite.Variant * w, 0f, w, 1f);
                 i++;
-                builder.AddBillboard(0, sprite.Position, new Vector2(size, size) * scale, new Rect(sprite.Variant * w, 0f, w, 1f),
-                    new Color(light * (1f + warm), light, light * (1f - warm), 1f));
+                for (var k = 0; k < 3; k++)
+                {
+                    var angle = yaw + k * Mathf.PI / 3f;
+                    var half = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * (size * scale * 0.5f);
+                    var face = new Vector3(-Mathf.Sin(angle), 0f, Mathf.Cos(angle));
+                    var normal = (Vector3.up * 0.8f + face * 0.2f).normalized;
+                    builder.AddPlantCard(0, sprite.Position - Vector3.up * 0.03f, half, size * scale, normal, rect, color, 1f);
+                }
             }
             return builder.Build(name);
         }
@@ -647,14 +752,15 @@ namespace ChroniclesOfRebirth.Editor.Locations
         static GameObject BuildHero(SilverrunValeLayout layout, MaterialSet materials)
         {
             var hero = new GameObject("Hero");
-            hero.transform.position = SilverrunValeLayout.HeroSpawn;
+            var spawn = SilverrunValeLayout.HeroSpawn;
+            hero.transform.position = new Vector3(spawn.x, layout.Field.SampleHeight(spawn.x, spawn.z) + 0.05f, spawn.z);
 
             var controller = hero.AddComponent<CharacterController>();
             controller.height = 1.4f;
             controller.radius = 0.28f;
             controller.center = new Vector3(0f, 0.72f, 0f);
             controller.stepOffset = 0.55f;
-            controller.slopeLimit = 50f;
+            controller.slopeLimit = SilverrunValeLayout.WalkableSlope;
             controller.skinWidth = 0.05f;
 
             var player = hero.AddComponent<PlayerController>();

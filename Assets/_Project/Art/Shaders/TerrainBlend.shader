@@ -1,12 +1,13 @@
-// Верхние грани рельефа одним материалом: тип земли берётся из карты (пиксель на клетку рельефа), а точка выборки
+// Весь рельеф одним материалом: тип земли берётся из карты (пиксель на клетку рельефа), а точка выборки
 // сдвигается шумом, привязанным к пиксельной сетке, — границы между травой, тропой, галькой и камнем становятся
-// неровными, природными, без квадратных ступенек и без размытия пикселей. Рельеф поверхности (камешки, травинки,
-// комья) считается из яркости текстуры — свет «цепляется» за детали, как с картой нормалей.
+// неровными, природными, без квадратных ступенек и без размытия пикселей. Крутые склоны сами получают текстуру
+// обрыва (земляной или скальной — по типу земли), спроецированную сбоку: пиксели на стенах не растягиваются.
+// Рельеф поверхности (камешки, травинки, комья) считается из яркости текстуры — свет «цепляется» за детали.
 Shader "ChroniclesOfRebirth/TerrainBlend"
 {
     Properties
     {
-        [NoScaleOffset] _GroundTextures("Ground Textures (array, index = GroundType)", 2DArray) = "" {}
+        [NoScaleOffset] _GroundTextures("Ground Textures (array: GroundType, then cliff earth, cliff rock)", 2DArray) = "" {}
         [NoScaleOffset] _GroundMap("Ground Type Map (R = type / 16)", 2D) = "black" {}
         _MapRect("Map Rect (minX, minZ, width, depth)", Vector) = (0, 0, 1, 1)
         _MapTexel("Map Texel (1/cols, 1/rows, cols, rows)", Vector) = (1, 1, 1, 1)
@@ -15,6 +16,8 @@ Shader "ChroniclesOfRebirth/TerrainBlend"
         _EdgeNoise("Border Jitter (units)", Range(0, 0.6)) = 0.32
         _EdgeDetail("Fine Border Jitter (units)", Range(0, 0.3)) = 0.09
         _BumpStrength("Surface Relief", Range(0, 4)) = 1.6
+        _CliffAngle("Cliff From Slope (cos of angle)", Range(0, 1)) = 0.72
+        _CliffJitter("Cliff Border Jitter", Range(0, 0.3)) = 0.12
     }
 
     SubShader
@@ -26,8 +29,6 @@ Shader "ChroniclesOfRebirth/TerrainBlend"
 
         TEXTURE2D_ARRAY(_GroundTextures);
         SAMPLER(sampler_GroundTextures);
-        TEXTURE2D(_GroundMap);
-        SAMPLER(sampler_GroundMap);
 
         CBUFFER_START(UnityPerMaterial)
             float4 _MapRect;
@@ -37,51 +38,64 @@ Shader "ChroniclesOfRebirth/TerrainBlend"
             float _EdgeNoise;
             float _EdgeDetail;
             float _BumpStrength;
+            float _CliffAngle;
+            float _CliffJitter;
         CBUFFER_END
 
-        float Hash21(float2 p)
+        #include "GroundCommon.hlsl"
+
+        half3 GroundColor(float2 uv, float index)
         {
-            p = frac(p * float2(123.34, 456.21));
-            p += dot(p, p + 45.32);
-            return frac(p.x * p.y);
+            return SAMPLE_TEXTURE2D_ARRAY(_GroundTextures, sampler_GroundTextures, uv / _UnitsPerTile, index).rgb;
         }
 
-        float ValueNoise(float2 p)
+        // Как лечь текстуре: сверху (по xz) или сбоку на обрыв (по плоскости, к которой стена ближе всего).
+        struct GroundProjection
         {
-            float2 i = floor(p);
-            float2 f = frac(p);
-            f = f * f * (3 - 2 * f);
-            float a = Hash21(i), b = Hash21(i + float2(1, 0)), c = Hash21(i + float2(0, 1)), d = Hash21(i + float2(1, 1));
-            return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
+            float2 uv;      // мировые координаты на плоскости проекции
+            float3 axisU;   // мировые направления осей uv — для наклона нормали рельефом
+            float3 axisV;
+            float index;    // слой массива текстур
+        };
+
+        GroundProjection ProjectGround(float3 positionWS, float3 normalWS)
+        {
+            GroundProjection g;
+            float index = GroundIndex(positionWS.xz);
+            // Граница «склон / обрыв» неровная: порог крутизны чуть гуляет по пиксельной сетке.
+            float2 snapped = SnapToTexel(positionWS.xz + positionWS.y * 0.37);
+            float threshold = _CliffAngle + (ValueNoise(snapped * 2.3) - 0.5) * 2 * _CliffJitter;
+            if (normalWS.y < threshold)
+            {
+                bool facesX = abs(normalWS.x) > abs(normalWS.z);
+                g.uv = facesX ? positionWS.zy : positionWS.xy;
+                g.axisU = facesX ? float3(0, 0, 1) : float3(1, 0, 0);
+                g.axisV = float3(0, 1, 0);
+                g.index = (index == GROUND_ROCK || index == GROUND_SNOW || index == GROUND_FLAGSTONE)
+                    ? GROUND_CLIFF_ROCK : GROUND_CLIFF_EARTH;
+            }
+            else
+            {
+                g.uv = positionWS.xz;
+                g.axisU = float3(1, 0, 0);
+                g.axisV = float3(0, 0, 1);
+                g.index = index;
+            }
+            return g;
         }
 
-        // Тип земли в точке: позиция привязывается к пиксельной сетке текстур, затем сдвигается шумом
-        // (крупные «языки» + мелкая рваность) и по ней читается карта клеток.
-        float GroundIndex(float2 xz)
-        {
-            float2 snapped = (floor(xz * _TexelsPerUnit) + 0.5) / _TexelsPerUnit;
-            float2 jitter = float2(ValueNoise(snapped * 1.3), ValueNoise(snapped * 1.3 + 17.7)) - 0.5;
-            float2 fine = float2(ValueNoise(snapped * 7.0 + 3.1), ValueNoise(snapped * 7.0 + 9.4)) - 0.5;
-            float2 p = snapped + jitter * 2 * _EdgeNoise + fine * 2 * _EdgeDetail;
-            float2 uv = (p - _MapRect.xy) / _MapRect.zw;
-            uv = (floor(uv * _MapTexel.zw) + 0.5) * _MapTexel.xy;
-            return floor(SAMPLE_TEXTURE2D_LOD(_GroundMap, sampler_GroundMap, uv, 0).r * 16 + 0.5);
-        }
-
-        half3 GroundColor(float2 xz, float index)
-        {
-            return SAMPLE_TEXTURE2D_ARRAY(_GroundTextures, sampler_GroundTextures, xz / _UnitsPerTile, index).rgb;
-        }
-
-        // Рельеф из яркости: разности соседних пикселей текстуры дают наклон поверхности.
-        float3 ReliefNormal(float2 xz, float index)
+        // Рельеф из яркости: разности соседних пикселей текстуры наклоняют нормаль поверхности.
+        float3 ReliefNormal(GroundProjection g, float3 normalWS)
         {
             float texel = 1.0 / _TexelsPerUnit;
             float3 lum = float3(0.299, 0.587, 0.114);
-            float h = dot(GroundColor(xz, index), lum);
-            float hx = dot(GroundColor(xz + float2(texel, 0), index), lum);
-            float hz = dot(GroundColor(xz + float2(0, texel), index), lum);
-            return normalize(float3((h - hx) * _BumpStrength, 1, (h - hz) * _BumpStrength));
+            float h = dot(GroundColor(g.uv, g.index), lum);
+            float hu = dot(GroundColor(g.uv + float2(texel, 0), g.index), lum);
+            float hv = dot(GroundColor(g.uv + float2(0, texel), g.index), lum);
+            float3 tilt = g.axisU * (h - hu) + g.axisV * (h - hv);
+            // Наклон — только вдоль поверхности, без составляющей по нормали.
+            tilt -= normalWS * dot(tilt, normalWS);
+            return normalize(normalWS + tilt * _BumpStrength);
         }
         ENDHLSL
 
@@ -134,14 +148,10 @@ Shader "ChroniclesOfRebirth/TerrainBlend"
 
             half4 Frag(Varyings i) : SV_Target
             {
-                float2 xz = i.positionWS.xz;
-                float index = GroundIndex(xz);
-                half3 albedo = GroundColor(xz, index);
-
-                // Рельеф поверхности наклоняет нормаль верхней грани (на склонах-тропах — вместе с ней).
-                float3 relief = ReliefNormal(xz, index);
                 float3 n = normalize(i.normalWS);
-                float3 normalWS = normalize(n + float3(relief.x, 0, relief.z));
+                GroundProjection g = ProjectGround(i.positionWS, n);
+                half3 albedo = GroundColor(g.uv, g.index);
+                float3 normalWS = ReliefNormal(g, n);
 
                 InputData input = (InputData)0;
                 input.positionWS = i.positionWS;
@@ -284,9 +294,8 @@ Shader "ChroniclesOfRebirth/TerrainBlend"
 
             half4 Frag(Varyings i) : SV_Target
             {
-                float index = GroundIndex(i.positionWS.xz);
-                float3 relief = ReliefNormal(i.positionWS.xz, index);
-                float3 normalWS = normalize(normalize(i.normalWS) + float3(relief.x, 0, relief.z));
+                float3 n = normalize(i.normalWS);
+                float3 normalWS = ReliefNormal(ProjectGround(i.positionWS, n), n);
                 return half4(NormalizeNormalPerPixel(normalWS), 0);
             }
             ENDHLSL

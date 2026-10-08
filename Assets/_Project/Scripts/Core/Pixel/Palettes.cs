@@ -37,6 +37,8 @@ namespace ChroniclesOfRebirth.Core.Pixel
         public static readonly ColorRamp LeavesRed = new("3d1110", "631a16", "8c261d", "b23827", "d45334", "ea7a48");
         public static readonly ColorRamp LeavesYellow = new("5a3d10", "855e17", "ae8320", "d1a62e", "e9c64a", "f6e07a");
         public static readonly ColorRamp LeavesConifer = new("0f1f17", "162c20", "1f3b29", "2a4c33", "37603e", "467449");
+        /// <summary>Опавшие листья на земле: тёмно-красные, охра, оранжевые и жёлтые вперемешку.</summary>
+        public static readonly ColorRamp FallenLeaves = new("4d1712", "6e2416", "8c3a1a", "a8551f", "c26e27", "d48a2c", "dba63a", "e2c056");
         public static readonly ColorRamp LeavesBush = new("1c2612", "2b3a19", "3e5222", "556a2b", "718536", "929f46");
 
         public static readonly ColorRamp Wood = new("3a2616", "543820", "6e4b2c", "8a6038", "a5774a", "bd8f5c");
