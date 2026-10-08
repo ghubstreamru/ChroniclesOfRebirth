@@ -1,0 +1,26 @@
+{
+    "name": "ChroniclesOfRebirth.Editor",
+    "rootNamespace": "ChroniclesOfRebirth.Editor",
+    "references": [
+        "ChroniclesOfRebirth.Core",
+        "ChroniclesOfRebirth.Gameplay",
+        "ChroniclesOfRebirth.UI",
+        "Unity.InputSystem",
+        "Unity.Cinemachine",
+        "Unity.Localization",
+        "Unity.Localization.Editor",
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.Universal.Runtime"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

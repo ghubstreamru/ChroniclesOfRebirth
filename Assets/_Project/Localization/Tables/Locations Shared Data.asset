@@ -1,0 +1,100 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5b11a58205ec3474ca216360e9fa74a8, type: 3}
+  m_Name: Locations Shared Data
+  m_EditorClassIdentifier: Unity.Localization::UnityEngine.Localization.Tables.SharedTableData
+  m_TableCollectionName: Locations
+  m_TableCollectionNameGuidString: 8b548de6dde445e4eba5fc1a414f45d4
+  m_Entries:
+  - m_Id: 1646489600
+    m_Key: loc.silverrun_vale
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1709404160
+    m_Key: loc.silverrun
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1726181376
+    m_Key: loc.honeybrook
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1726181377
+    m_Key: loc.glimmerwood
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1726181378
+    m_Key: loc.waking_shore
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1726181379
+    m_Key: loc.dawnstone_shrine
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1726181380
+    m_Key: loc.chiming_rapids
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1726181381
+    m_Key: loc.mistshallows
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1726181382
+    m_Key: loc.stillwater
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1726181383
+    m_Key: loc.old_watch
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1726181384
+    m_Key: loc.snarepath
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1726181385
+    m_Key: loc.rutted_glade
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1726181386
+    m_Key: loc.grandfather_oak
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1726181387
+    m_Key: loc.ribbon_hollow
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1726181388
+    m_Key: loc.sleeping_lights_grotto
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1726181389
+    m_Key: loc.smoulder_camp
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1726181390
+    m_Key: loc.first_sight_bluff
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1726181391
+    m_Key: loc.stepstone_ford
+    m_Metadata:
+      m_Items: []
+  m_Metadata:
+    m_Items: []
+  m_KeyGenerator:
+    rid: 2532067706308657539
+  references:
+    version: 2
+    RefIds:
+    - rid: 2532067706308657539
+      type: {class: DistributedUIDGenerator, ns: UnityEngine.Localization.Tables, asm: Unity.Localization}
+      data:
+        m_CustomEpoch: 1791421323996

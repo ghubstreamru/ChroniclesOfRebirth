@@ -1,0 +1,19 @@
+{
+    "name": "ChroniclesOfRebirth.Gameplay",
+    "rootNamespace": "ChroniclesOfRebirth.Gameplay",
+    "references": [
+        "ChroniclesOfRebirth.Core",
+        "Unity.InputSystem",
+        "Unity.Localization",
+        "Unity.Cinemachine"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

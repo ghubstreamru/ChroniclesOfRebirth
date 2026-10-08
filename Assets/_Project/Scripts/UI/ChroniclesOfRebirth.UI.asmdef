@@ -1,0 +1,19 @@
+{
+    "name": "ChroniclesOfRebirth.UI",
+    "rootNamespace": "ChroniclesOfRebirth.UI",
+    "references": [
+        "ChroniclesOfRebirth.Core",
+        "ChroniclesOfRebirth.Gameplay",
+        "Unity.InputSystem",
+        "Unity.Localization"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

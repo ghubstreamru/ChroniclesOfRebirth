@@ -1,0 +1,95 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e9620f8c34305754d8cc9a7e49e852d9, type: 3}
+  m_Name: Locations_en
+  m_EditorClassIdentifier: Unity.Localization::UnityEngine.Localization.Tables.StringTable
+  m_LocaleId:
+    m_Code: en
+  m_SharedData: {fileID: 11400000, guid: 8b548de6dde445e4eba5fc1a414f45d4, type: 2}
+  m_Metadata:
+    m_Items: []
+  m_TableData:
+  - m_Id: 1646489600
+    m_Localized: Silverrun Vale
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1709404160
+    m_Localized: Silverrun
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1726181376
+    m_Localized: Honeybrook
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1726181377
+    m_Localized: Glimmerwood
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1726181378
+    m_Localized: Waking Shore
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1726181379
+    m_Localized: Dawnstone Shrine
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1726181380
+    m_Localized: Chiming Rapids
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1726181381
+    m_Localized: Mistshallows
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1726181382
+    m_Localized: Stillwater
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1726181383
+    m_Localized: Old Watch
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1726181384
+    m_Localized: Snarepath
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1726181385
+    m_Localized: Rutted Glade
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1726181386
+    m_Localized: Grandfather Oak
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1726181387
+    m_Localized: Ribbon Hollow
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1726181388
+    m_Localized: Grotto of Sleeping Lights
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1726181389
+    m_Localized: Smoulder Camp
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1726181390
+    m_Localized: First Sight Bluff
+    m_Metadata:
+      m_Items: []
+  - m_Id: 1726181391
+    m_Localized: Stepstone Ford
+    m_Metadata:
+      m_Items: []
+  references:
+    version: 2
+    RefIds: []
